@@ -26,26 +26,24 @@ export async function verifyCandidates(
   candidates: Array<{ email: string; pattern: string }>,
   apiKey: string,
 ) {
-  const results = [];
-
-  for (const candidate of candidates) {
-    try {
-      const verification = await verifyEmail(candidate.email, apiKey);
-      results.push({
-        ...candidate,
-        status: verification.status ?? "unknown",
-        verification,
-      });
-    } catch {
-      results.push({
-        ...candidate,
-        status: "error",
-        verification: null,
-      });
-    }
-  }
-
-  return results;
+  return Promise.all(
+    candidates.map(async (candidate) => {
+      try {
+        const verification = await verifyEmail(candidate.email, apiKey);
+        return {
+          ...candidate,
+          status: verification.status ?? "unknown",
+          verification,
+        };
+      } catch {
+        return {
+          ...candidate,
+          status: "error",
+          verification: null,
+        };
+      }
+    }),
+  );
 }
 
 export function pickBestVerification(

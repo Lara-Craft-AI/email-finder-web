@@ -4,9 +4,61 @@ import { resolveDomain } from "@/lib/resolve-domain";
 import type { EmailResult, LeadInput } from "@/lib/types";
 
 const encoder = new TextEncoder();
+const MAX_CONCURRENCY = 10;
 
 function sseEvent(type: string, data: unknown) {
   return encoder.encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+function createLimiter(concurrency: number) {
+  let activeCount = 0;
+  const queue: Array<() => void> = [];
+
+  return async function limit<T>(task: () => Promise<T>) {
+    if (activeCount >= concurrency) {
+      await new Promise<void>((resolve) => {
+        queue.push(resolve);
+      });
+    }
+
+    activeCount += 1;
+
+    try {
+      return await task();
+    } finally {
+      activeCount -= 1;
+      queue.shift()?.();
+    }
+  };
+}
+
+async function processLead(
+  lead: LeadInput,
+  reoonApiKey: string,
+  domainCache: Map<string, Promise<string>>,
+) {
+  const trimmedCompany = lead.company.trim();
+  let domainPromise = domainCache.get(trimmedCompany);
+
+  if (!domainPromise) {
+    domainPromise = resolveDomain(lead.company).then((resolution) => resolution.domain);
+    domainCache.set(trimmedCompany, domainPromise);
+  }
+
+  const domain = await domainPromise;
+  const candidates = permuteEmails(lead.name, domain);
+  const verifications = candidates.length ? await verifyCandidates(candidates, reoonApiKey) : [];
+  const winner = pickBestVerification(verifications);
+  const fallbackStatus = domain ? "not_found" : "unresolved_domain";
+
+  return {
+    name: lead.name,
+    company: lead.company,
+    domain,
+    email: winner?.email ?? "",
+    pattern: winner?.pattern ?? "",
+    status: winner?.status ?? fallbackStatus,
+  } satisfies EmailResult;
 }
 
 export async function POST(request: Request) {
@@ -28,51 +80,32 @@ export async function POST(request: Request) {
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const results: EmailResult[] = [];
-      const domainCache = new Map<string, string>();
+      const results: EmailResult[] = new Array(leads.length);
+      const domainCache = new Map<string, Promise<string>>();
+      const limit = createLimiter(MAX_CONCURRENCY);
+      let completed = 0;
 
       try {
         controller.enqueue(sseEvent("start", { total: leads.length }));
 
-        for (let index = 0; index < leads.length; index += 1) {
-          const lead = leads[index];
+        await Promise.all(
+          leads.map((lead, index) =>
+            limit(async () => {
+              const result = await processLead(lead, reoonApiKey, domainCache);
+              results[index] = result;
+              completed += 1;
 
-          controller.enqueue(
-            sseEvent("progress", {
-              current: index + 1,
-              total: leads.length,
-              name: lead.name,
+              controller.enqueue(
+                sseEvent("progress", {
+                  current: completed,
+                  total: leads.length,
+                  name: lead.name,
+                }),
+              );
+              controller.enqueue(sseEvent("result", result));
             }),
-          );
-
-          let domain = domainCache.get(lead.company) ?? "";
-          if (!domain) {
-            const resolution = await resolveDomain(lead.company);
-            domain = resolution.domain;
-            if (domain) {
-              domainCache.set(lead.company, domain);
-            }
-          }
-
-          const candidates = permuteEmails(lead.name, domain);
-          const verifications = candidates.length
-            ? await verifyCandidates(candidates, reoonApiKey)
-            : [];
-          const winner = pickBestVerification(verifications);
-          const fallbackStatus = domain ? "not_found" : "unresolved_domain";
-
-          const result: EmailResult = {
-            name: lead.name,
-            company: lead.company,
-            domain,
-            email: winner?.email ?? "",
-            pattern: winner?.pattern ?? "",
-            status: winner?.status ?? fallbackStatus,
-          };
-
-          results.push(result);
-          controller.enqueue(sseEvent("result", result));
-        }
+          ),
+        );
 
         controller.enqueue(sseEvent("complete", { results }));
         controller.close();

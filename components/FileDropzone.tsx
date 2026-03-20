@@ -126,7 +126,8 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
       <CardHeader>
         <CardTitle>Upload your CSV</CardTitle>
         <CardDescription>
-          Any CSV with columns containing "first", "last", and "company" works.
+          Any CSV with columns containing &quot;first&quot;, &quot;last&quot;, and
+          &quot;company&quot; works.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -155,7 +156,8 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
           />
           <p className="text-sm font-medium text-zinc-900">Drag and drop your CSV here</p>
           <p className="mt-2 text-sm text-zinc-500">
-            Columns must include "first", "last", and "company" (any naming works). Download sample below.
+            Columns must include &quot;first&quot;, &quot;last&quot;, and
+            &quot;company&quot; (any naming works). Download sample below.
           </p>
           <Button
             className="mt-4"
