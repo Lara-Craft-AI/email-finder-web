@@ -128,12 +128,23 @@ export default function Home() {
           }
 
           if (event.type === "result") {
-            setResults((previous) => [...previous, event]);
+            setResults((previous) => {
+              const existingIndex = previous.findIndex(
+                (r) => r.name === event.name && r.company === event.company,
+              );
+              if (existingIndex >= 0) {
+                const updated = [...previous];
+                updated[existingIndex] = event;
+                return updated;
+              }
+              return [...previous, event];
+            });
           }
 
           if (event.type === "complete") {
             setResults(event.results);
-            setCurrent(event.results.length);
+            setCurrent(0);
+            setTotal(0);
             setActiveName("");
           }
 
