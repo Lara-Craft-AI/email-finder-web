@@ -12,7 +12,8 @@ export async function resolveDomain(company: string) {
     return { domain: "", source: "missing_company" };
   }
 
-  const override = DOMAIN_OVERRIDES[trimmed];
+  const overrideKey = Object.keys(DOMAIN_OVERRIDES).find(k => k.toLowerCase() === trimmed.toLowerCase());
+  const override = overrideKey ? DOMAIN_OVERRIDES[overrideKey] : undefined;
   if (override) {
     return { domain: override, source: "override" };
   }
@@ -38,6 +39,27 @@ export async function resolveDomain(company: string) {
     if (domain) {
       const { domainMatchRisk } = scoreDomainSimilarity(domain, trimmed);
       if (domainMatchRisk === "high") {
+        if (process.env.BRAVE_API_KEY) {
+          try {
+            const braveRes = await fetch(
+              "https://api.search.brave.com/res/v1/web/search?q=" + encodeURIComponent(trimmed + " official website") + "&count=3",
+              { headers: { "X-Subscription-Token": process.env.BRAVE_API_KEY, "Accept": "application/json" }, cache: "no-store" },
+            );
+            if (braveRes.ok) {
+              const braveData = await braveRes.json() as { web?: { results?: Array<{ url?: string }> } };
+              const firstUrl = braveData?.web?.results?.[0]?.url;
+              if (firstUrl) {
+                const braveDomain = normalizeDomain(firstUrl);
+                if (braveDomain) {
+                  const braveScore = scoreDomainSimilarity(braveDomain, trimmed);
+                  if (braveScore.domainMatchRisk !== "high") {
+                    return { domain: braveDomain, source: "brave" };
+                  }
+                }
+              }
+            }
+          } catch {}
+        }
         return { domain: "", source: "unresolved_low_confidence" as const };
       }
     }

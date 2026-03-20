@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { Info, Lock } from "lucide-react";
 
 import { FileDropzone } from "@/components/FileDropzone";
@@ -54,6 +54,7 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState("");
   const [isApiKeyInfoOpen, setIsApiKeyInfoOpen] = useState(false);
+  const isSecondPassRef = useRef(false);
   const apiKeyInfoId = useId();
 
   const stepState = useMemo(
@@ -118,10 +119,11 @@ export default function Home() {
           if (event.type === "progress") {
             setCurrent(event.current);
             setTotal(event.total);
-            setActiveName(event.name);
+            setActiveName((isSecondPassRef.current ? "[2nd pass] " : "") + event.name);
           }
 
           if (event.type === "second_pass_start") {
+            isSecondPassRef.current = true;
             setCurrent(0);
             setTotal(event.count);
             setActiveName(`Second pass: ${event.count} not_found leads`);
@@ -142,6 +144,7 @@ export default function Home() {
           }
 
           if (event.type === "complete") {
+            isSecondPassRef.current = false;
             const deduped = new Map<string, typeof event.results[number]>();
             for (const r of event.results) {
               deduped.set(`${r.name}\0${r.company}`, r);

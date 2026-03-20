@@ -25,7 +25,7 @@ const STATUS_ORDER: Record<string, number> = {
   unresolved_domain: 3,
 };
 
-type GradeFilter = "all" | "A" | "B" | "C";
+type GradeFilter = "all" | "A" | "B" | "C" | "none";
 
 function statusVariant(status: string) {
   if (status === "valid" || status === "safe_to_send") {
@@ -69,9 +69,10 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
   );
 
   const gradeCounts = useMemo(() => {
-    const counts = { A: 0, B: 0, C: 0 };
+    const counts = { A: 0, B: 0, C: 0, none: 0 };
     for (const r of results) {
-      if (r.grade === "A") counts.A++;
+      if (!r.email) counts.none++;
+      else if (r.grade === "A") counts.A++;
       else if (r.grade === "B") counts.B++;
       else if (r.grade === "C") counts.C++;
     }
@@ -100,18 +101,21 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
         if (activeFilter === "all") {
           return true;
         }
-
+        if (activeFilter === "none") {
+          return !result.email;
+        }
         return result.grade === activeFilter;
       }),
     [activeFilter, sortedResults],
   );
 
   const filteredCsv = useMemo(() => {
+    const rowsWithEmail = filteredResults.filter((row) => row.email);
     const lines = [
       ["first_name", "last_name", "company", "email", "grade", "domain_match_risk"]
         .map(escapeCell)
         .join(","),
-      ...filteredResults.map((row) => {
+      ...rowsWithEmail.map((row) => {
         const { firstName, lastName } = splitName(row.name);
         return [
           firstName,
@@ -137,7 +141,7 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
     const href = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = href;
-    link.download = `email-finder-${activeFilter === "all" ? "all-results" : `grade-${activeFilter.toLowerCase()}`}.csv`;
+    link.download = "email-finder-verified.csv";
     link.click();
     URL.revokeObjectURL(href);
   }
@@ -158,6 +162,7 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
               { key: "A", label: `Grade A (${gradeCounts.A})` },
               { key: "B", label: `Grade B (${gradeCounts.B})` },
               { key: "C", label: `Grade C (${gradeCounts.C})` },
+              { key: "none", label: `No email (${gradeCounts.none})` },
             ].map((tab) => (
               <Button
                 key={tab.key}
@@ -173,7 +178,7 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
             ))}
           </div>
           <Button variant="outline" onClick={downloadFilteredCsv} disabled={!filteredResults.length}>
-            Export filtered results
+            Export verified emails
           </Button>
         </div>
         <p className="text-sm text-zinc-500">{filteredResults.length} rows match the active filter.</p>
@@ -190,7 +195,7 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
           </TableHeader>
           <TableBody>
             {pageResults.map((row) => (
-              <TableRow key={`${row.name}-${row.company}`}>
+              <TableRow key={`${row.name}\x00${row.company}`}>
                 <TableCell>
                   {row.grade && (row.grade !== "C" || row.email) ? (
                     <Badge className={gradeBadgeClass(row.grade)}>{row.grade}</Badge>

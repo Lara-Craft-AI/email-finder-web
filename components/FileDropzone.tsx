@@ -68,7 +68,7 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
 
   const parseFile = useCallback(
     async (file: File) => {
-      const text = await file.text();
+      const text = (await file.text()).replace(/^\uFEFF/, "");
       const rows = parseCsv(text).filter((row) => row.some((cell) => cell.trim()));
 
       if (!rows.length) {
