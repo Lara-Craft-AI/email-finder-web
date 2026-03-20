@@ -27,6 +27,7 @@ export async function verifyEmail(email: string, apiKey: string) {
 
   const response = await fetch(url, {
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!response.ok) {
@@ -40,24 +41,28 @@ export async function verifyCandidates(
   candidates: Array<{ email: string; pattern: string }>,
   apiKey: string,
 ) {
-  return Promise.all(
-    candidates.map(async (candidate) => {
-      try {
-        const verification = await verifyEmail(candidate.email, apiKey);
-        return {
-          ...candidate,
-          status: normalizeReoonStatus(verification.status),
-          verification,
-        };
-      } catch {
-        return {
-          ...candidate,
-          status: "error" as EmailStatus,
-          verification: null,
-        };
+  const results: Array<{ email: string; pattern: string; status: EmailStatus; verification: ReoonVerification | null }> = [];
+
+  for (const candidate of candidates) {
+    try {
+      const verification = await verifyEmail(candidate.email, apiKey);
+      const status = normalizeReoonStatus(verification.status);
+      results.push({ ...candidate, status, verification });
+
+      // Early exit: stop burning API credits once we find a valid email
+      if (status === "valid" || status === "safe_to_send") {
+        break;
       }
-    }),
-  );
+    } catch {
+      results.push({
+        ...candidate,
+        status: "error" as EmailStatus,
+        verification: null,
+      });
+    }
+  }
+
+  return results;
 }
 
 export function pickBestVerification(

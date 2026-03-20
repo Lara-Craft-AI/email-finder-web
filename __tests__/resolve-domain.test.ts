@@ -4,15 +4,21 @@ import { resolveDomain } from "@/lib/resolve-domain";
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
-// Suppress console for cleaner test output
+// Mock DNS resolveMx
+const mockResolveMx = jest.fn();
+jest.mock("node:dns/promises", () => ({
+  resolveMx: (...args: unknown[]) => mockResolveMx(...args),
+}));
+
 beforeEach(() => {
   mockFetch.mockReset();
+  mockResolveMx.mockReset();
   delete process.env.BRAVE_API_KEY;
 });
 
 describe("resolveDomain", () => {
   // -----------------------------------------------------------------------
-  // Override tests
+  // Step 1: Override tests
   // -----------------------------------------------------------------------
   it("returns override domain for exact match (case-insensitive)", async () => {
     const result = await resolveDomain("Nift");
@@ -48,9 +54,56 @@ describe("resolveDomain", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Clearbit happy path
+  // Step 2: Slug guess with MX check
   // -----------------------------------------------------------------------
-  it("returns Clearbit domain when similarity is acceptable", async () => {
+  it("resolves via slug guess when MX records exist for joined slug", async () => {
+    mockResolveMx.mockResolvedValueOnce([{ exchange: "mx.example.com", priority: 10 }]);
+
+    const result = await resolveDomain("Barefoot Books");
+    expect(result.domain).toBe("barefootbooks.com");
+    expect(result.source).toBe("slug_guess");
+    // Should not call fetch (no Clearbit/Brave needed)
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("resolves via hyphenated slug when joined slug has no MX", async () => {
+    // First candidate (joined) fails
+    mockResolveMx.mockRejectedValueOnce(new Error("ENOTFOUND"));
+    // Second candidate (hyphenated) succeeds
+    mockResolveMx.mockResolvedValueOnce([{ exchange: "mx.example.com", priority: 10 }]);
+
+    const result = await resolveDomain("Barefoot Books");
+    expect(result.domain).toBe("barefoot-books.com");
+    expect(result.source).toBe("slug_guess");
+  });
+
+  it("resolves via first-word slug when other slugs fail", async () => {
+    // Joined fails
+    mockResolveMx.mockRejectedValueOnce(new Error("ENOTFOUND"));
+    // Hyphenated fails
+    mockResolveMx.mockRejectedValueOnce(new Error("ENOTFOUND"));
+    // First-word succeeds
+    mockResolveMx.mockResolvedValueOnce([{ exchange: "mx.example.com", priority: 10 }]);
+
+    const result = await resolveDomain("Barefoot Books");
+    expect(result.domain).toBe("barefoot.com");
+    expect(result.source).toBe("slug_guess");
+  });
+
+  it("strips common suffixes from slug candidates", async () => {
+    mockResolveMx.mockResolvedValueOnce([{ exchange: "mx.example.com", priority: 10 }]);
+
+    const result = await resolveDomain("Acme Corp");
+    expect(result.domain).toBe("acme.com");
+    expect(result.source).toBe("slug_guess");
+    // "corp" stripped, single word → only 1 candidate
+  });
+
+  it("falls through slug guess when no MX records found", async () => {
+    // All slug candidates fail
+    mockResolveMx.mockRejectedValue(new Error("ENOTFOUND"));
+
+    // Clearbit returns a good match
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => [{ domain: "acme.com" }],
@@ -62,65 +115,37 @@ describe("resolveDomain", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Clearbit low-confidence → Brave fallback
+  // Step 3: Clearbit happy path
   // -----------------------------------------------------------------------
-  it("uses Brave first when API key is set via env and result is good", async () => {
-    process.env.BRAVE_API_KEY = "test-key";
-
-    // Brave returns a good match (called first now)
+  it("returns Clearbit domain when similarity >= 0.6", async () => {
+    mockResolveMx.mockRejectedValue(new Error("ENOTFOUND"));
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({
-        web: {
-          results: [{ url: "https://www.acmecorp.com/about" }],
-        },
-      }),
+      json: async () => [{ domain: "acme.com" }],
     });
 
-    const result = await resolveDomain("Acme Corp");
-    // If Brave domain passes similarity check, it should be returned
-    if (result.source === "brave") {
-      expect(result.domain).toBe("acmecorp.com");
-    } else {
-      // If Brave domain fails similarity, falls back to Clearbit → unresolved
-      expect(result.source).toBe("unresolved");
-    }
+    const result = await resolveDomain("Acme");
+    expect(result.domain).toBe("acme.com");
+    expect(result.source).toBe("clearbit");
   });
 
-  it("uses Brave when API key is passed as parameter (BYOK)", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        web: {
-          results: [{ url: "https://www.acmecorp.com/about" }],
-        },
-      }),
-    });
+  it("falls through Clearbit when similarity < 0.6", async () => {
+    mockResolveMx.mockRejectedValue(new Error("ENOTFOUND"));
 
-    const result = await resolveDomain("Acme Corp", "user-provided-key");
-    if (result.source === "brave") {
-      expect(result.domain).toBe("acmecorp.com");
-    } else {
-      expect(result.source).toBe("unresolved");
-    }
-  });
-
-  it("returns unresolved when Clearbit is low-confidence and no Brave key", async () => {
-    // No BRAVE_API_KEY set
+    // Clearbit returns a poor match
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => [{ domain: "totally-unrelated.com" }],
     });
 
     const result = await resolveDomain("Acme Corp");
+    // No Brave key, so unresolved
     expect(result.domain).toBe("");
-    expect(result.source).toBe("unresolved_low_confidence");
+    expect(result.source).toBe("unresolved");
   });
 
-  // -----------------------------------------------------------------------
-  // Clearbit failure
-  // -----------------------------------------------------------------------
-  it("returns unresolved when Clearbit API errors", async () => {
+  it("returns unresolved when Clearbit API errors and no Brave key", async () => {
+    mockResolveMx.mockRejectedValue(new Error("ENOTFOUND"));
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 500,
@@ -131,18 +156,8 @@ describe("resolveDomain", () => {
     expect(result.source).toBe("unresolved");
   });
 
-  it("returns unresolved when fetch throws", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("Network error"));
-
-    const result = await resolveDomain("Acme");
-    expect(result.domain).toBe("");
-    expect(result.source).toBe("unresolved");
-  });
-
-  // -----------------------------------------------------------------------
-  // Clearbit returns empty results
-  // -----------------------------------------------------------------------
   it("returns unresolved when Clearbit returns empty array", async () => {
+    mockResolveMx.mockRejectedValue(new Error("ENOTFOUND"));
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => [],
@@ -154,9 +169,102 @@ describe("resolveDomain", () => {
   });
 
   // -----------------------------------------------------------------------
+  // Step 4: Brave API (last resort)
+  // -----------------------------------------------------------------------
+  it("uses Brave as last resort when slug and Clearbit fail", async () => {
+    process.env.BRAVE_API_KEY = "test-key";
+    mockResolveMx.mockRejectedValue(new Error("ENOTFOUND"));
+
+    // Clearbit returns empty
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [],
+    });
+
+    // Brave returns a good match (acme.com has high similarity to "Acme")
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        web: { results: [{ url: "https://www.acme.com/about" }] },
+      }),
+    });
+
+    const result = await resolveDomain("Acme");
+    expect(result.source).toBe("brave");
+    expect(result.domain).toBe("acme.com");
+  });
+
+  it("uses user-provided braveApiKey over env var", async () => {
+    process.env.BRAVE_API_KEY = "env-key";
+    mockResolveMx.mockRejectedValue(new Error("ENOTFOUND"));
+
+    // Clearbit returns empty
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [],
+    });
+
+    // Brave returns a result
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        web: { results: [{ url: "https://www.acmecorp.com/about" }] },
+      }),
+    });
+
+    await resolveDomain("Acme Corp", "user-key");
+
+    // Brave call is the second fetch (after Clearbit)
+    const braveCall = mockFetch.mock.calls[1];
+    expect(braveCall[1].headers["X-Subscription-Token"]).toBe("user-key");
+  });
+
+  it("returns unresolved when Brave similarity < 0.5", async () => {
+    process.env.BRAVE_API_KEY = "test-key";
+    mockResolveMx.mockRejectedValue(new Error("ENOTFOUND"));
+
+    // Clearbit empty
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [],
+    });
+
+    // Brave returns unrelated domain
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        web: { results: [{ url: "https://www.totally-unrelated-xyz.com" }] },
+      }),
+    });
+
+    const result = await resolveDomain("Acme Corp");
+    expect(result.domain).toBe("");
+    expect(result.source).toBe("unresolved");
+  });
+
+  it("handles Brave API failure gracefully", async () => {
+    process.env.BRAVE_API_KEY = "test-key";
+    mockResolveMx.mockRejectedValue(new Error("ENOTFOUND"));
+
+    // Clearbit empty
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => [],
+    });
+
+    // Brave fails
+    mockFetch.mockRejectedValueOnce(new Error("Brave error"));
+
+    const result = await resolveDomain("Acme Corp");
+    expect(result.domain).toBe("");
+    expect(result.source).toBe("unresolved");
+  });
+
+  // -----------------------------------------------------------------------
   // Domain normalization
   // -----------------------------------------------------------------------
   it("strips https:// and www. from Clearbit domain", async () => {
+    mockResolveMx.mockRejectedValue(new Error("ENOTFOUND"));
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => [{ domain: "https://www.acme.com/path" }],
@@ -167,41 +275,14 @@ describe("resolveDomain", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Brave fallback edge cases
+  // Network error
   // -----------------------------------------------------------------------
-  it("handles Brave API failure gracefully and falls back to Clearbit", async () => {
-    process.env.BRAVE_API_KEY = "test-key";
+  it("returns unresolved when fetch throws", async () => {
+    mockResolveMx.mockRejectedValue(new Error("ENOTFOUND"));
+    mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-    // Brave fails (called first now)
-    mockFetch.mockRejectedValueOnce(new Error("Brave error"));
-
-    // Clearbit returns a poor match
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [{ domain: "totally-unrelated.com" }],
-    });
-
-    const result = await resolveDomain("Acme Corp");
+    const result = await resolveDomain("Acme");
     expect(result.domain).toBe("");
-    expect(result.source).toBe("unresolved_low_confidence");
-  });
-
-  it("prefers user-provided braveApiKey over env var", async () => {
-    process.env.BRAVE_API_KEY = "env-key";
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        web: {
-          results: [{ url: "https://www.acmecorp.com/about" }],
-        },
-      }),
-    });
-
-    await resolveDomain("Acme Corp", "user-key");
-
-    // Verify the fetch was called with the user-provided key, not the env key
-    const braveCall = mockFetch.mock.calls[0];
-    expect(braveCall[1].headers["X-Subscription-Token"]).toBe("user-key");
+    expect(result.source).toBe("unresolved");
   });
 });

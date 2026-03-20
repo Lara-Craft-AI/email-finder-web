@@ -27,6 +27,9 @@ const STATUS_ORDER: Record<string, number> = {
 
 type GradeFilter = "all" | "A" | "B";
 
+const RISKY_TOOLTIP =
+  "This domain accepts all emails — we cannot confirm this address exists. Use with caution.";
+
 function statusVariant(status: string) {
   if (status === "valid" || status === "safe_to_send") {
     return "success" as const;
@@ -39,15 +42,20 @@ function statusVariant(status: string) {
 
 function gradeLabel(grade: EmailResult["grade"]): string | null {
   if (grade === "A") return "Verified";
-  if (grade === "B") return "Review";
+  if (grade === "B" || grade === "C") return "Risky";
   return null;
+}
+
+function gradeTooltip(grade: EmailResult["grade"]): string | undefined {
+  if (grade === "B" || grade === "C") return RISKY_TOOLTIP;
+  return undefined;
 }
 
 function gradeBadgeClass(grade: EmailResult["grade"]) {
   if (grade === "A") {
     return "border-emerald-500/20 bg-emerald-500/10 text-emerald-400";
   }
-  if (grade === "B") {
+  if (grade === "B" || grade === "C") {
     return "border-amber-500/20 bg-amber-500/10 text-amber-400";
   }
   return "";
@@ -150,7 +158,7 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
   const filterTabs = [
     { key: "all" as const, label: "All", count: results.length },
     { key: "A" as const, label: "Verified", count: gradeCounts.A },
-    { key: "B" as const, label: "Review", count: gradeCounts.B },
+    { key: "B" as const, label: "Risky", count: gradeCounts.B },
   ];
 
   return (
@@ -202,11 +210,22 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
           <TableBody>
             {pageResults.map((row) => {
               const label = gradeLabel(row.grade);
+              const tooltip = gradeTooltip(row.grade);
               return (
                 <TableRow key={`${row.name}\x00${row.company}`}>
                   <TableCell>
                     {label ? (
-                      <Badge className={gradeBadgeClass(row.grade)}>{label}</Badge>
+                      <span className="inline-flex items-center gap-1" title={tooltip}>
+                        <Badge className={gradeBadgeClass(row.grade)}>{label}</Badge>
+                        {tooltip && (
+                          <span
+                            className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-amber-500/30 text-[10px] text-amber-400"
+                            title={tooltip}
+                          >
+                            ?
+                          </span>
+                        )}
+                      </span>
                     ) : (
                       <span className="text-zinc-700">—</span>
                     )}
