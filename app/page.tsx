@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Lock } from "lucide-react";
+import { Info, Lock } from "lucide-react";
 
 import { FileDropzone } from "@/components/FileDropzone";
 import { ProgressStep } from "@/components/ProgressStep";
@@ -228,7 +228,18 @@ export default function Home() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Reoon API key</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Reoon API key</CardTitle>
+              <a
+                href="https://www.reoon.com/email-verifier/"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Go on https://www.reoon.com/email-verifier/ to get an API key"
+                className="text-zinc-400 hover:text-zinc-600 transition-colors"
+              >
+                <Info size={16} />
+              </a>
+            </div>
             <CardDescription className="flex items-center gap-1.5">
               <Lock size={13} className="text-zinc-400" />
               Your key is sent over HTTPS, used once to verify emails, and never stored or shared.
