@@ -17,6 +17,13 @@ import type { EmailResult } from "@/lib/types";
 
 const PAGE_SIZE = 10;
 const GRADE_ORDER = { A: 0, B: 1, C: 2 } as const;
+const STATUS_ORDER: Record<string, number> = {
+  valid: 0,
+  safe_to_send: 0,
+  catch_all: 1,
+  not_found: 2,
+  unresolved_domain: 3,
+};
 
 type GradeFilter = "all" | "A" | "B" | "C";
 
@@ -61,15 +68,26 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
     [results],
   );
 
+  const gradeCounts = useMemo(() => {
+    const counts = { A: 0, B: 0, C: 0 };
+    for (const r of results) {
+      if (r.grade === "A") counts.A++;
+      else if (r.grade === "B") counts.B++;
+      else if (r.grade === "C") counts.C++;
+    }
+    return counts;
+  }, [results]);
+
   const sortedResults = useMemo(() => {
     const copy = [...results];
     copy.sort((left, right) => {
+      const leftStatus = STATUS_ORDER[left.status] ?? 4;
+      const rightStatus = STATUS_ORDER[right.status] ?? 4;
+      if (leftStatus !== rightStatus) return leftStatus - rightStatus;
+
       const leftGrade = left.grade ? GRADE_ORDER[left.grade] : Number.MAX_SAFE_INTEGER;
       const rightGrade = right.grade ? GRADE_ORDER[right.grade] : Number.MAX_SAFE_INTEGER;
-
-      if (leftGrade !== rightGrade) {
-        return leftGrade - rightGrade;
-      }
+      if (leftGrade !== rightGrade) return leftGrade - rightGrade;
 
       return left.name.localeCompare(right.name);
     });
@@ -136,10 +154,10 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-2">
             {[
-              { key: "all", label: "All" },
-              { key: "A", label: "Grade A" },
-              { key: "B", label: "Grade B" },
-              { key: "C", label: "Grade C / Suspect" },
+              { key: "all", label: `All (${results.length})` },
+              { key: "A", label: `Grade A (${gradeCounts.A})` },
+              { key: "B", label: `Grade B (${gradeCounts.B})` },
+              { key: "C", label: `Grade C (${gradeCounts.C})` },
             ].map((tab) => (
               <Button
                 key={tab.key}
@@ -174,10 +192,10 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
             {pageResults.map((row) => (
               <TableRow key={`${row.name}-${row.company}`}>
                 <TableCell>
-                  {row.grade ? (
+                  {row.grade && (row.grade !== "C" || row.email) ? (
                     <Badge className={gradeBadgeClass(row.grade)}>{row.grade}</Badge>
                   ) : (
-                    "—"
+                    <span className="text-zinc-400">—</span>
                   )}
                 </TableCell>
                 <TableCell className="font-medium text-zinc-900">{row.name}</TableCell>

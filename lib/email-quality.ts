@@ -190,7 +190,7 @@ export function scoreEmailQuality({
   if (!email) {
     return {
       confidenceScore: 0,
-      grade: "C" as EmailGrade,
+      grade: null as EmailGrade | null,
     };
   }
 

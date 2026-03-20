@@ -71,7 +71,7 @@ async function processLead(
       status: fallbackStatus,
       domain_match_risk: domainMatchRisk,
       mx_provider: mxProfile.mxProvider,
-      grade: "C",
+      grade: null,
       confidence_score: 0,
     } satisfies EmailResult;
   }

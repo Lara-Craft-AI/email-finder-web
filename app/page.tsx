@@ -142,7 +142,11 @@ export default function Home() {
           }
 
           if (event.type === "complete") {
-            setResults(event.results);
+            const deduped = new Map<string, typeof event.results[number]>();
+            for (const r of event.results) {
+              deduped.set(`${r.name}\0${r.company}`, r);
+            }
+            setResults([...deduped.values()]);
             setIsRunning(false);
             setCurrent(0);
             setTotal(0);
