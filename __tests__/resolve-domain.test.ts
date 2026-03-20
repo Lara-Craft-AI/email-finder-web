@@ -16,13 +16,13 @@ describe("resolveDomain", () => {
   // -----------------------------------------------------------------------
   it("returns override domain for exact match (case-insensitive)", async () => {
     const result = await resolveDomain("Nift");
-    expect(result.domain).toBe("nift.com");
+    expect(result.domain).toBe("gonift.com");
     expect(result.source).toBe("override");
   });
 
   it("returns override domain case-insensitively", async () => {
     const result = await resolveDomain("nift");
-    expect(result.domain).toBe("nift.com");
+    expect(result.domain).toBe("gonift.com");
     expect(result.source).toBe("override");
   });
 
@@ -64,16 +64,10 @@ describe("resolveDomain", () => {
   // -----------------------------------------------------------------------
   // Clearbit low-confidence → Brave fallback
   // -----------------------------------------------------------------------
-  it("falls back to Brave when Clearbit domain has high risk", async () => {
+  it("uses Brave first when API key is set and result is good", async () => {
     process.env.BRAVE_API_KEY = "test-key";
 
-    // Clearbit returns a poor match
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => [{ domain: "totally-unrelated.com" }],
-    });
-
-    // Brave returns a better match
+    // Brave returns a good match (called first now)
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -88,8 +82,8 @@ describe("resolveDomain", () => {
     if (result.source === "brave") {
       expect(result.domain).toBe("acmecorp.com");
     } else {
-      // If Brave domain also fails similarity, source is unresolved
-      expect(result.source).toBe("unresolved_low_confidence");
+      // If Brave domain fails similarity, falls back to Clearbit → unresolved
+      expect(result.source).toBe("unresolved");
     }
   });
 
@@ -157,17 +151,17 @@ describe("resolveDomain", () => {
   // -----------------------------------------------------------------------
   // Brave fallback edge cases
   // -----------------------------------------------------------------------
-  it("handles Brave API failure gracefully", async () => {
+  it("handles Brave API failure gracefully and falls back to Clearbit", async () => {
     process.env.BRAVE_API_KEY = "test-key";
+
+    // Brave fails (called first now)
+    mockFetch.mockRejectedValueOnce(new Error("Brave error"));
 
     // Clearbit returns a poor match
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => [{ domain: "totally-unrelated.com" }],
     });
-
-    // Brave fails
-    mockFetch.mockRejectedValueOnce(new Error("Brave error"));
 
     const result = await resolveDomain("Acme Corp");
     expect(result.domain).toBe("");

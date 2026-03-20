@@ -18,6 +18,32 @@ export async function resolveDomain(company: string) {
     return { domain: override, source: "override" };
   }
 
+  // Try Brave first if API key is available
+  if (process.env.BRAVE_API_KEY) {
+    try {
+      const braveRes = await fetch(
+        "https://api.search.brave.com/res/v1/web/search?q=" + encodeURIComponent(trimmed + " official website") + "&count=3",
+        { headers: { "X-Subscription-Token": process.env.BRAVE_API_KEY, "Accept": "application/json" }, cache: "no-store", signal: AbortSignal.timeout(10_000) },
+      );
+      if (braveRes.ok) {
+        const braveData = await braveRes.json() as { web?: { results?: Array<{ url?: string }> } };
+        const firstUrl = braveData?.web?.results?.[0]?.url;
+        if (firstUrl) {
+          const braveDomain = normalizeDomain(firstUrl);
+          if (braveDomain) {
+            const braveScore = scoreDomainSimilarity(braveDomain, trimmed);
+            if (braveScore.domainMatchRisk !== "high") {
+              return { domain: braveDomain, source: "brave" };
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`[resolve-domain] Brave search failed for "${trimmed}":`, error instanceof Error ? error.message : error);
+    }
+  }
+
+  // Fall back to Clearbit
   try {
     const response = await fetch(
       `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(trimmed)}`,
@@ -26,6 +52,7 @@ export async function resolveDomain(company: string) {
           Accept: "application/json",
         },
         cache: "no-store",
+        signal: AbortSignal.timeout(10_000),
       },
     );
 
@@ -39,27 +66,6 @@ export async function resolveDomain(company: string) {
     if (domain) {
       const { domainMatchRisk } = scoreDomainSimilarity(domain, trimmed);
       if (domainMatchRisk === "high") {
-        if (process.env.BRAVE_API_KEY) {
-          try {
-            const braveRes = await fetch(
-              "https://api.search.brave.com/res/v1/web/search?q=" + encodeURIComponent(trimmed + " official website") + "&count=3",
-              { headers: { "X-Subscription-Token": process.env.BRAVE_API_KEY, "Accept": "application/json" }, cache: "no-store" },
-            );
-            if (braveRes.ok) {
-              const braveData = await braveRes.json() as { web?: { results?: Array<{ url?: string }> } };
-              const firstUrl = braveData?.web?.results?.[0]?.url;
-              if (firstUrl) {
-                const braveDomain = normalizeDomain(firstUrl);
-                if (braveDomain) {
-                  const braveScore = scoreDomainSimilarity(braveDomain, trimmed);
-                  if (braveScore.domainMatchRisk !== "high") {
-                    return { domain: braveDomain, source: "brave" };
-                  }
-                }
-              }
-            }
-          } catch {}
-        }
         return { domain: "", source: "unresolved_low_confidence" as const };
       }
     }

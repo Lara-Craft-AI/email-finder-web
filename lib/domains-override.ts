@@ -10,5 +10,5 @@ export const DOMAIN_OVERRIDES: Record<string, string> = {
   organicgirl: "iloveorganicgirl.com",
   Guidehealth: "guidehealth.com",
   NAIA: "naia.org",
-  Nift: "nift.com",
+  Nift: "gonift.com",
 };
