@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Info, Lock } from "lucide-react";
 
 import { FileDropzone } from "@/components/FileDropzone";
@@ -53,6 +53,8 @@ export default function Home() {
   const [activeName, setActiveName] = useState("");
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState("");
+  const [isApiKeyInfoOpen, setIsApiKeyInfoOpen] = useState(false);
+  const apiKeyInfoId = useId();
 
   const stepState = useMemo(
     () => ({
@@ -226,20 +228,47 @@ export default function Home() {
 
         <FileDropzone onLeadsParsed={setLeads} />
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Reoon API key</CardTitle>
+        <Card className="relative">
+          <div
+            className="absolute top-4 right-4 z-10"
+            onMouseEnter={() => setIsApiKeyInfoOpen(true)}
+            onMouseLeave={() => setIsApiKeyInfoOpen(false)}
+          >
+            <button
+              type="button"
+              aria-label="How to get a Reoon API key"
+              aria-describedby={apiKeyInfoId}
+              aria-expanded={isApiKeyInfoOpen}
+              onClick={() => setIsApiKeyInfoOpen((previous) => !previous)}
+              onFocus={() => setIsApiKeyInfoOpen(true)}
+              onBlur={() => setIsApiKeyInfoOpen(false)}
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-300 focus-visible:ring-offset-2"
+            >
+              <Info size={14} />
+            </button>
+            <div
+              id={apiKeyInfoId}
+              role="tooltip"
+              className={`absolute top-9 right-0 w-64 rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs leading-5 text-zinc-600 shadow-lg transition-all ${
+                isApiKeyInfoOpen
+                  ? "pointer-events-auto translate-y-0 opacity-100"
+                  : "pointer-events-none -translate-y-1 opacity-0"
+              }`}
+            >
+              Go on{" "}
               <a
                 href="https://www.reoon.com/email-verifier/"
                 target="_blank"
                 rel="noopener noreferrer"
-                title="Go on https://www.reoon.com/email-verifier/ to get an API key"
-                className="text-zinc-400 hover:text-zinc-600 transition-colors"
+                className="underline underline-offset-2 hover:text-zinc-900"
               >
-                <Info size={16} />
-              </a>
+                https://www.reoon.com/email-verifier/
+              </a>{" "}
+              to get an API key
             </div>
+          </div>
+          <CardHeader>
+            <CardTitle>Reoon API key</CardTitle>
             <CardDescription className="flex items-center gap-1.5">
               <Lock size={13} className="text-zinc-400" />
               Your key is sent over HTTPS, used once to verify emails, and never stored or shared.
