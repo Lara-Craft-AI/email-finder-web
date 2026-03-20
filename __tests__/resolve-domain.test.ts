@@ -64,7 +64,7 @@ describe("resolveDomain", () => {
   // -----------------------------------------------------------------------
   // Clearbit low-confidence → Brave fallback
   // -----------------------------------------------------------------------
-  it("uses Brave first when API key is set and result is good", async () => {
+  it("uses Brave first when API key is set via env and result is good", async () => {
     process.env.BRAVE_API_KEY = "test-key";
 
     // Brave returns a good match (called first now)
@@ -83,6 +83,24 @@ describe("resolveDomain", () => {
       expect(result.domain).toBe("acmecorp.com");
     } else {
       // If Brave domain fails similarity, falls back to Clearbit → unresolved
+      expect(result.source).toBe("unresolved");
+    }
+  });
+
+  it("uses Brave when API key is passed as parameter (BYOK)", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        web: {
+          results: [{ url: "https://www.acmecorp.com/about" }],
+        },
+      }),
+    });
+
+    const result = await resolveDomain("Acme Corp", "user-provided-key");
+    if (result.source === "brave") {
+      expect(result.domain).toBe("acmecorp.com");
+    } else {
       expect(result.source).toBe("unresolved");
     }
   });
@@ -166,5 +184,24 @@ describe("resolveDomain", () => {
     const result = await resolveDomain("Acme Corp");
     expect(result.domain).toBe("");
     expect(result.source).toBe("unresolved_low_confidence");
+  });
+
+  it("prefers user-provided braveApiKey over env var", async () => {
+    process.env.BRAVE_API_KEY = "env-key";
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        web: {
+          results: [{ url: "https://www.acmecorp.com/about" }],
+        },
+      }),
+    });
+
+    await resolveDomain("Acme Corp", "user-key");
+
+    // Verify the fetch was called with the user-provided key, not the env key
+    const braveCall = mockFetch.mock.calls[0];
+    expect(braveCall[1].headers["X-Subscription-Token"]).toBe("user-key");
   });
 });

@@ -40,12 +40,13 @@ async function processLead(
   domainCache: Map<string, Promise<string>>,
   mxCache: Map<string, Promise<Awaited<ReturnType<typeof getMxProfile>>>>,
   extended = false,
+  braveApiKey?: string,
 ) {
   const trimmedCompany = lead.company.trim();
   let domainPromise = domainCache.get(trimmedCompany);
 
   if (!domainPromise) {
-    domainPromise = resolveDomain(lead.company).then((resolution) => resolution.domain);
+    domainPromise = resolveDomain(lead.company, braveApiKey).then((resolution) => resolution.domain);
     domainCache.set(trimmedCompany, domainPromise);
   }
 
@@ -108,10 +109,12 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     leads?: LeadInput[];
     reoonApiKey?: string;
+    braveApiKey?: string;
   };
 
   const leads = Array.isArray(body.leads) ? body.leads : [];
   const reoonApiKey = body.reoonApiKey?.trim() ?? "";
+  const braveApiKey = body.braveApiKey?.trim() || undefined;
 
   if (!leads.length) {
     return Response.json({ error: "At least one lead is required." }, { status: 400 });
@@ -135,7 +138,7 @@ export async function POST(request: Request) {
         await Promise.all(
           leads.map((lead, index) =>
             limit(async () => {
-              const result = await processLead(lead, reoonApiKey, domainCache, mxCache);
+              const result = await processLead(lead, reoonApiKey, domainCache, mxCache, false, braveApiKey);
               results[index] = result;
               completed += 1;
 
@@ -167,7 +170,7 @@ export async function POST(request: Request) {
             notFoundIndices.map((index) =>
               limit(async () => {
                 const lead = leads[index];
-                const result = await processLead(lead, reoonApiKey, domainCache, mxCache, true);
+                const result = await processLead(lead, reoonApiKey, domainCache, mxCache, true, braveApiKey);
                 results[index] = result;
                 secondCompleted += 1;
 
@@ -187,6 +190,7 @@ export async function POST(request: Request) {
         controller.enqueue(sseEvent("complete", { results }));
         controller.close();
       } catch (error) {
+        console.error("[find-emails] Stream error:", error);
         controller.enqueue(
           sseEvent("error", {
             message: error instanceof Error ? error.message : "Unexpected error",

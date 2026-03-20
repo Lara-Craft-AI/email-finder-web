@@ -5,7 +5,7 @@ function normalizeDomain(input: string) {
   return input.trim().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase();
 }
 
-export async function resolveDomain(company: string) {
+export async function resolveDomain(company: string, braveApiKey?: string) {
   const trimmed = company.trim();
 
   if (!trimmed) {
@@ -18,12 +18,13 @@ export async function resolveDomain(company: string) {
     return { domain: override, source: "override" };
   }
 
-  // Try Brave first if API key is available
-  if (process.env.BRAVE_API_KEY) {
+  // Try Brave first if API key is available (user-provided or env fallback)
+  const effectiveBraveKey = braveApiKey || process.env.BRAVE_API_KEY;
+  if (effectiveBraveKey) {
     try {
       const braveRes = await fetch(
         "https://api.search.brave.com/res/v1/web/search?q=" + encodeURIComponent(trimmed + " official website") + "&count=3",
-        { headers: { "X-Subscription-Token": process.env.BRAVE_API_KEY, "Accept": "application/json" }, cache: "no-store", signal: AbortSignal.timeout(10_000) },
+        { headers: { "X-Subscription-Token": effectiveBraveKey, "Accept": "application/json" }, cache: "no-store", signal: AbortSignal.timeout(10_000) },
       );
       if (braveRes.ok) {
         const braveData = await braveRes.json() as { web?: { results?: Array<{ url?: string }> } };

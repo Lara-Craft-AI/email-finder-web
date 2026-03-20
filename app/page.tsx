@@ -51,6 +51,7 @@ function parseSseChunk(chunk: string) {
 export default function Home() {
   const [leads, setLeads] = useState<LeadInput[]>([]);
   const [reoonApiKey, setReoonApiKey] = useState("");
+  const [braveApiKey, setBraveApiKey] = useState("");
   const [results, setResults] = useState<EmailResult[]>([]);
   const [current, setCurrent] = useState(0);
   const [total, setTotal] = useState(0);
@@ -58,8 +59,10 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState("");
   const [isApiKeyInfoOpen, setIsApiKeyInfoOpen] = useState(false);
+  const [isBraveKeyInfoOpen, setIsBraveKeyInfoOpen] = useState(false);
   const isSecondPassRef = useRef(false);
   const apiKeyInfoId = useId();
+  const braveKeyInfoId = useId();
 
   const stepState = useMemo(
     () => ({
@@ -88,6 +91,7 @@ export default function Home() {
         body: JSON.stringify({
           leads,
           reoonApiKey,
+          braveApiKey: braveApiKey.trim() || undefined,
         }),
       });
 
@@ -308,11 +312,66 @@ export default function Home() {
               Your key is sent over HTTPS, used once to verify emails, and never stored or shared.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent>
             <Input
               placeholder="Paste your Reoon API key"
               value={reoonApiKey}
               onChange={(event) => setReoonApiKey(event.target.value)}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="relative">
+          <div
+            className="absolute top-4 right-4 z-10"
+            onMouseEnter={() => setIsBraveKeyInfoOpen(true)}
+            onMouseLeave={() => setIsBraveKeyInfoOpen(false)}
+          >
+            <button
+              type="button"
+              aria-label="How to get a Brave API key"
+              aria-describedby={braveKeyInfoId}
+              aria-expanded={isBraveKeyInfoOpen}
+              onClick={() => setIsBraveKeyInfoOpen((previous) => !previous)}
+              onFocus={() => setIsBraveKeyInfoOpen(true)}
+              onBlur={() => setIsBraveKeyInfoOpen(false)}
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-white/[0.08] text-zinc-600 transition-colors hover:border-white/[0.15] hover:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-600 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0b]"
+            >
+              <Info size={14} />
+            </button>
+            <div
+              id={braveKeyInfoId}
+              role="tooltip"
+              className={`absolute top-9 right-0 w-64 rounded-lg border border-white/[0.08] bg-zinc-900 px-3 py-2 text-xs leading-5 text-zinc-400 shadow-xl transition-all ${
+                isBraveKeyInfoOpen
+                  ? "pointer-events-auto translate-y-0 opacity-100"
+                  : "pointer-events-none -translate-y-1 opacity-0"
+              }`}
+            >
+              Get a free key at{" "}
+              <a
+                href="https://brave.com/search/api/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 hover:text-zinc-200"
+              >
+                brave.com/search/api/
+              </a>{" "}
+              — free tier gives 2,000 queries/month
+            </div>
+          </div>
+          <CardHeader>
+            <CardTitle>Brave API key <span className="text-sm font-normal text-zinc-600">(optional)</span></CardTitle>
+            <CardDescription className="flex items-center gap-1.5">
+              <Lock size={13} className="text-zinc-600" />
+              Improves company domain resolution. Falls back to Clearbit if not provided.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Input
+              placeholder="Paste your Brave Search API key"
+              value={braveApiKey}
+              onChange={(event) => setBraveApiKey(event.target.value)}
             />
             <Separator />
             <div className="flex items-center justify-between gap-4 text-sm text-zinc-500">
