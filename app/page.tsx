@@ -143,6 +143,7 @@ export default function Home() {
 
           if (event.type === "complete") {
             setResults(event.results);
+            setIsRunning(false);
             setCurrent(0);
             setTotal(0);
             setActiveName("");
