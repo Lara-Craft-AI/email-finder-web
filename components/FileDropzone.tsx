@@ -76,12 +76,12 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
       }
 
       const headers = rows[0].map((cell) => cell.trim().toLowerCase());
-      const firstNameIndex = headers.indexOf("first_name");
-      const lastNameIndex = headers.indexOf("last_name");
-      const companyIndex = headers.indexOf("company");
+      const firstNameIndex = headers.findIndex((h) => h.includes("first"));
+      const lastNameIndex = headers.findIndex((h) => h.includes("last"));
+      const companyIndex = headers.findIndex((h) => h.includes("company"));
 
       if (firstNameIndex === -1 || lastNameIndex === -1 || companyIndex === -1) {
-        throw new Error('CSV must include "first_name", "last_name", and "company" columns.');
+        throw new Error('CSV must have columns containing "first", "last", and "company".');
       }
 
       const leads = rows
@@ -95,7 +95,7 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
         .filter((lead) => lead.name && lead.company);
 
       if (!leads.length) {
-        throw new Error("No valid rows found. Add at least one first_name, last_name, and company.");
+        throw new Error("No valid rows found. Add at least one row with first, last, and company.");
       }
 
       setFileName(file.name);
@@ -126,7 +126,7 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
       <CardHeader>
         <CardTitle>Upload your CSV</CardTitle>
         <CardDescription>
-          Expected CSV format: `first_name,last_name,company`.
+          Any CSV with columns containing "first", "last", and "company" works.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -155,7 +155,7 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
           />
           <p className="text-sm font-medium text-zinc-900">Drag and drop your CSV here</p>
           <p className="mt-2 text-sm text-zinc-500">
-            Include `first_name`, `last_name`, and `company`, or use the sample file below.
+            Columns must include "first", "last", and "company" (any naming works). Download sample below.
           </p>
           <Button
             className="mt-4"
