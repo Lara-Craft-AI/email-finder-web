@@ -197,12 +197,12 @@ export default function Home() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#0a0a0b] px-6 py-16">
+    <main className="min-h-screen bg-white px-6 py-16">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">
         <section className="space-y-6">
           <div className="space-y-3">
-            <p className="text-xs font-medium uppercase tracking-widest text-zinc-600">Email Finder</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-zinc-100">
+            <p className="text-xs font-medium uppercase tracking-widest text-zinc-400">Email Finder</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">
               Find verified emails for $0.001 each.
             </h1>
             <p className="text-[15px] leading-relaxed text-zinc-500">
@@ -212,13 +212,13 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-white/[0.06] text-sm">
-            <div className="grid grid-cols-3 border-b border-white/[0.06] px-4 py-2.5 text-xs font-medium text-zinc-600">
+          <div className="overflow-hidden rounded-xl border border-zinc-200 text-sm">
+            <div className="grid grid-cols-3 border-b border-zinc-200 px-4 py-2.5 text-xs font-medium text-zinc-400">
               <span></span>
               <span>Apollo</span>
-              <span className="text-zinc-300">Email Finder</span>
+              <span className="text-zinc-700">Email Finder</span>
             </div>
-            <div className="divide-y divide-white/[0.04]">
+            <div className="divide-y divide-zinc-100">
               {[
                 ["Per email", "$0.05-0.10", "~$0.001"],
                 ["1,000 emails", "$50-100", "~$1"],
@@ -227,18 +227,18 @@ export default function Home() {
               ].map(([label, apollo, ours]) => (
                 <div key={label} className="grid grid-cols-3 px-4 py-3">
                   <span className="text-zinc-500">{label}</span>
-                  <span className="text-zinc-600">{apollo}</span>
-                  <span className="font-medium text-zinc-200">{ours}</span>
+                  <span className="text-zinc-400">{apollo}</span>
+                  <span className="font-medium text-zinc-800">{ours}</span>
                 </div>
               ))}
             </div>
-            <div className="border-t border-white/[0.06] px-4 py-2.5 text-xs text-zinc-600">
+            <div className="border-t border-zinc-200 px-4 py-2.5 text-xs text-zinc-400">
               Powered by{" "}
               <a
                 href="https://reoon.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-zinc-400"
+                className="underline hover:text-zinc-600"
               >
                 Reoon
               </a>{" "}
@@ -250,12 +250,12 @@ export default function Home() {
         <div className="flex items-center gap-2">
           {steps.map((step, i) => (
             <div key={step.label} className="flex items-center gap-2">
-              {i > 0 && <div className="h-px w-4 bg-white/[0.06]" />}
+              {i > 0 && <div className="h-px w-4 bg-zinc-200" />}
               <div
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   step.done
-                    ? "bg-white text-zinc-900"
-                    : "border border-white/[0.08] text-zinc-600"
+                    ? "bg-zinc-900 text-white"
+                    : "border border-zinc-200 text-zinc-400"
                 }`}
               >
                 {step.label}
@@ -280,14 +280,14 @@ export default function Home() {
               onClick={() => setIsApiKeyInfoOpen((previous) => !previous)}
               onFocus={() => setIsApiKeyInfoOpen(true)}
               onBlur={() => setIsApiKeyInfoOpen(false)}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-white/[0.08] text-zinc-600 transition-colors hover:border-white/[0.15] hover:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-600 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0b]"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 text-zinc-400 transition-colors hover:border-zinc-300 hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             >
               <Info size={14} />
             </button>
             <div
               id={apiKeyInfoId}
               role="tooltip"
-              className={`absolute top-9 right-0 w-64 rounded-lg border border-white/[0.08] bg-zinc-900 px-3 py-2 text-xs leading-5 text-zinc-400 shadow-xl transition-all ${
+              className={`absolute top-9 right-0 w-64 rounded-lg border border-zinc-200 bg-zinc-100 px-3 py-2 text-xs leading-5 text-zinc-600 shadow-xl transition-all ${
                 isApiKeyInfoOpen
                   ? "pointer-events-auto translate-y-0 opacity-100"
                   : "pointer-events-none -translate-y-1 opacity-0"
@@ -298,7 +298,7 @@ export default function Home() {
                 href="https://www.reoon.com/email-verifier/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline underline-offset-2 hover:text-zinc-200"
+                className="underline underline-offset-2 hover:text-zinc-800"
               >
                 https://www.reoon.com/email-verifier/
               </a>{" "}
@@ -308,7 +308,7 @@ export default function Home() {
           <CardHeader>
             <CardTitle>Reoon API key</CardTitle>
             <CardDescription className="flex items-center gap-1.5">
-              <Lock size={13} className="text-zinc-600" />
+              <Lock size={13} className="text-zinc-400" />
               Your key is sent over HTTPS, used once to verify emails, and never stored or shared.
             </CardDescription>
           </CardHeader>
@@ -335,14 +335,14 @@ export default function Home() {
               onClick={() => setIsBraveKeyInfoOpen((previous) => !previous)}
               onFocus={() => setIsBraveKeyInfoOpen(true)}
               onBlur={() => setIsBraveKeyInfoOpen(false)}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-white/[0.08] text-zinc-600 transition-colors hover:border-white/[0.15] hover:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-600 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0b]"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 text-zinc-400 transition-colors hover:border-zinc-300 hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             >
               <Info size={14} />
             </button>
             <div
               id={braveKeyInfoId}
               role="tooltip"
-              className={`absolute top-9 right-0 w-64 rounded-lg border border-white/[0.08] bg-zinc-900 px-3 py-2 text-xs leading-5 text-zinc-400 shadow-xl transition-all ${
+              className={`absolute top-9 right-0 w-64 rounded-lg border border-zinc-200 bg-zinc-100 px-3 py-2 text-xs leading-5 text-zinc-600 shadow-xl transition-all ${
                 isBraveKeyInfoOpen
                   ? "pointer-events-auto translate-y-0 opacity-100"
                   : "pointer-events-none -translate-y-1 opacity-0"
@@ -353,7 +353,7 @@ export default function Home() {
                 href="https://brave.com/search/api/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline underline-offset-2 hover:text-zinc-200"
+                className="underline underline-offset-2 hover:text-zinc-800"
               >
                 brave.com/search/api/
               </a>{" "}
@@ -361,9 +361,9 @@ export default function Home() {
             </div>
           </div>
           <CardHeader>
-            <CardTitle>Brave API key <span className="text-sm font-normal text-zinc-600">(optional)</span></CardTitle>
+            <CardTitle>Brave API key <span className="text-sm font-normal text-zinc-400">(optional)</span></CardTitle>
             <CardDescription className="flex items-center gap-1.5">
-              <Lock size={13} className="text-zinc-600" />
+              <Lock size={13} className="text-zinc-400" />
               Improves company domain resolution. Falls back to Clearbit if not provided.
             </CardDescription>
           </CardHeader>
@@ -383,7 +383,7 @@ export default function Home() {
                 {isRunning ? "Running..." : "Run email finder"}
               </Button>
             </div>
-            {error ? <p className="text-sm text-red-400">{error}</p> : null}
+            {error ? <p className="text-sm text-red-500">{error}</p> : null}
           </CardContent>
         </Card>
 

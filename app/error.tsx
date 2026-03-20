@@ -14,12 +14,12 @@ export default function Error({
   }, [error]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#0a0a0b] px-6">
-      <h2 className="text-lg font-semibold text-zinc-100">Something went wrong</h2>
+    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-white px-6">
+      <h2 className="text-lg font-semibold text-zinc-900">Something went wrong</h2>
       <p className="text-sm text-zinc-500">{error.message}</p>
       <button
         onClick={reset}
-        className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-200"
+        className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
       >
         Try again
       </button>

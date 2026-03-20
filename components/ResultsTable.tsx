@@ -53,10 +53,10 @@ function gradeTooltip(grade: EmailResult["grade"]): string | undefined {
 
 function gradeBadgeClass(grade: EmailResult["grade"]) {
   if (grade === "A") {
-    return "border-emerald-500/20 bg-emerald-500/10 text-emerald-400";
+    return "border-emerald-500/20 bg-emerald-500/10 text-emerald-600";
   }
   if (grade === "B" || grade === "C") {
-    return "border-amber-500/20 bg-amber-500/10 text-amber-400";
+    return "border-amber-500/20 bg-amber-500/10 text-amber-600";
   }
   return "";
 }
@@ -171,7 +171,7 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-1 rounded-lg border border-white/[0.06] p-1">
+          <div className="flex gap-1 rounded-lg border border-zinc-200 p-1">
             {filterTabs.map((tab) => (
               <button
                 key={tab.key}
@@ -182,8 +182,8 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
                 }}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   activeFilter === tab.key
-                    ? "bg-white text-zinc-900"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-zinc-900 text-white"
+                    : "text-zinc-500 hover:text-zinc-700"
                 }`}
               >
                 {tab.label}
@@ -219,7 +219,7 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
                         <Badge className={gradeBadgeClass(row.grade)}>{label}</Badge>
                         {tooltip && (
                           <span
-                            className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-amber-500/30 text-[10px] text-amber-400"
+                            className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-amber-500/30 text-[10px] text-amber-600"
                             title={tooltip}
                           >
                             ?
@@ -227,12 +227,12 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
                         )}
                       </span>
                     ) : (
-                      <span className="text-zinc-700">—</span>
+                      <span className="text-zinc-300">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="font-medium text-zinc-200">{row.name}</TableCell>
+                  <TableCell className="font-medium text-zinc-800">{row.name}</TableCell>
                   <TableCell>{row.company}</TableCell>
-                  <TableCell className="text-zinc-600 font-mono text-xs">{row.domain || "—"}</TableCell>
+                  <TableCell className="text-zinc-400 font-mono text-xs">{row.domain || "—"}</TableCell>
                   <TableCell className="font-mono text-xs">{row.email || "—"}</TableCell>
                   <TableCell>
                     <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
@@ -252,7 +252,7 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
           >
             Previous
           </Button>
-          <p className="text-xs text-zinc-600">
+          <p className="text-xs text-zinc-400">
             Page {currentPage} of {totalPages}
           </p>
           <Button

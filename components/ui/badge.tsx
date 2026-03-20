@@ -12,10 +12,10 @@ export function Badge({
   children: ReactNode;
 }) {
   const variants = {
-    default: "border-transparent bg-white text-zinc-900",
-    secondary: "border-white/[0.06] bg-white/[0.04] text-zinc-500",
-    success: "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
-    warning: "border-amber-500/20 bg-amber-500/10 text-amber-400",
+    default: "border-transparent bg-zinc-900 text-white",
+    secondary: "border-zinc-200 bg-zinc-100 text-zinc-500",
+    success: "border-emerald-500/20 bg-emerald-500/10 text-emerald-600",
+    warning: "border-amber-500/20 bg-amber-500/10 text-amber-600",
   };
 
   return (

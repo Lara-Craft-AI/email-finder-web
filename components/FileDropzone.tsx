@@ -149,7 +149,7 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
           }}
           className={cn(
             "rounded-lg border border-dashed p-8 text-center transition-colors",
-            isDragging ? "border-zinc-500 bg-white/[0.04]" : "border-white/[0.08] bg-transparent",
+            isDragging ? "border-zinc-400 bg-zinc-50" : "border-zinc-200 bg-transparent",
           )}
         >
           <input
@@ -159,8 +159,8 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
             className="hidden"
             onChange={(event) => void handleFiles(event.target.files)}
           />
-          <p className="text-sm font-medium text-zinc-300">Drag and drop your CSV here</p>
-          <p className="mt-2 text-sm text-zinc-600">
+          <p className="text-sm font-medium text-zinc-700">Drag and drop your CSV here</p>
+          <p className="mt-2 text-sm text-zinc-400">
             Columns must include &quot;first&quot;, &quot;last&quot;, and
             &quot;company&quot; (any naming works).
           </p>
@@ -173,13 +173,13 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
             Choose CSV
           </Button>
           <div className="mt-3 text-xs">
-            <a href="/sample.csv" className="text-zinc-600 underline underline-offset-4 hover:text-zinc-400">
+            <a href="/sample.csv" className="text-zinc-400 underline underline-offset-4 hover:text-zinc-600">
               Download sample CSV
             </a>
           </div>
         </div>
         {fileName ? <p className="text-sm text-zinc-500">Loaded: {fileName}</p> : null}
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="text-sm text-red-500">{error}</p> : null}
       </CardContent>
     </Card>
   );
