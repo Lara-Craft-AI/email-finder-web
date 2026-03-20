@@ -124,6 +124,28 @@ function exactTokenOverlap(domainTokens: string[], companyTokens: string[]) {
   return matches / Math.max(domainSet.size, companySet.size);
 }
 
+const KNOWN_DOMAIN_SEGMENTS = new Set([
+  "ai","hub","hq","io","labs","media","works",
+  "health","group","partners","solutions","systems","tech","digital","global","online",
+]);
+
+function isCompoundDomain(domainRoot: string, tokens: string[]): boolean {
+  function consume(remaining: string, available: string[]): boolean {
+    if (remaining.length === 0) return true;
+    for (let i = 0; i < available.length; i++) {
+      const token = available[i];
+      if (remaining.startsWith(token)) {
+        const rest = remaining.slice(token.length);
+        const next = [...available.slice(0, i), ...available.slice(i + 1)];
+        if (consume(rest, next)) return true;
+        if (KNOWN_DOMAIN_SEGMENTS.has(rest)) return true;
+      }
+    }
+    return false;
+  }
+  return consume(domainRoot, tokens);
+}
+
 export function scoreDomainSimilarity(domain: string, company: string) {
   if (!domain.trim() || !company.trim()) {
     return {
@@ -148,10 +170,11 @@ export function scoreDomainSimilarity(domain: string, company: string) {
   const compactSimilarity =
     1 - levenshteinDistance(companyCompact, domainCompact) / Math.max(companyCompact.length, domainCompact.length);
   const overlap = exactTokenOverlap(domainTokens, companyTokens);
+  const compoundBonus = isCompoundDomain(domainCompact, companyTokens) ? 0.35 : 0;
   const similarity =
     companyCompact === domainCompact
       ? 1
-      : Number(Math.max(0, Math.min(1, compactSimilarity * 0.6 + overlap * 0.4)).toFixed(2));
+      : Number(Math.max(0, Math.min(1, compactSimilarity * 0.5 + overlap * 0.3 + compoundBonus)).toFixed(2));
 
   const domainMatchRisk: DomainMatchRisk =
     similarity >= 0.7 ? "low" : similarity >= 0.5 ? "medium" : "high";
