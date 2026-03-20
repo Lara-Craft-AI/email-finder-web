@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Lock } from "lucide-react";
 
 import { FileDropzone } from "@/components/FileDropzone";
 import { ProgressStep } from "@/components/ProgressStep";
@@ -142,15 +143,51 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white px-6 py-12">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
-        <section className="space-y-3">
-          <p className="text-sm font-medium text-zinc-500">Email Finder</p>
-          <h1 className="text-4xl font-semibold tracking-tight text-zinc-900">
-            Find and verify emails from a CSV.
-          </h1>
-          <p className="text-base leading-7 text-zinc-600">
-            Upload a list with names and companies, paste a Reoon API key, and download the
-            verified results.
-          </p>
+        <section className="space-y-6">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Email Finder</p>
+            <h1 className="text-4xl font-semibold tracking-tight text-zinc-900">
+              Find verified emails for <span className="text-zinc-900">$0.001 each.</span>
+            </h1>
+            <p className="text-base leading-7 text-zinc-500">
+              Apollo charges $0.05-0.10 per email. We use SMTP verification directly - same
+              accuracy, 50-100x cheaper. Upload a CSV, paste your Reoon key, download verified
+              results.
+            </p>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-zinc-200 text-sm">
+            <div className="grid grid-cols-3 bg-zinc-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              <span></span>
+              <span>Apollo</span>
+              <span className="text-zinc-900">Email Finder</span>
+            </div>
+            <div className="divide-y divide-zinc-100">
+              {[
+                ["Per email", "$0.05-0.10", "~$0.001"],
+                ["1,000 emails", "$50-100", "~$1"],
+                ["10,000 emails", "$500-1,000", "~$10"],
+                ["Verification", "Bundled", "SMTP verified"],
+              ].map(([label, apollo, ours]) => (
+                <div key={label} className="grid grid-cols-3 px-4 py-3">
+                  <span className="text-zinc-500">{label}</span>
+                  <span className="text-zinc-400">{apollo}</span>
+                  <span className="font-medium text-zinc-900">{ours}</span>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-zinc-100 bg-zinc-50 px-4 py-2.5 text-xs text-zinc-400">
+              Powered by{" "}
+              <a
+                href="https://reoon.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-zinc-600"
+              >
+                Reoon
+              </a>{" "}
+              - bring your own key, pay only for what you verify.
+            </div>
+          </div>
         </section>
 
         <Card>
@@ -185,8 +222,9 @@ export default function Home() {
         <Card>
           <CardHeader>
             <CardTitle>Reoon API key</CardTitle>
-            <CardDescription>
-              Your key is sent only with this request and is never stored.
+            <CardDescription className="flex items-center gap-1.5">
+              <Lock size={13} className="text-zinc-400" />
+              Your key is sent over HTTPS, used once to verify emails, and never stored or shared.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
