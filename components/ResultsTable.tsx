@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import type { EmailResult } from "@/lib/types";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 10;
 
 function statusVariant(status: string) {
   if (status === "valid" || status === "safe_to_send") {

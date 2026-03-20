@@ -14,14 +14,14 @@ export function splitName(fullName: string) {
   };
 }
 
-export function permuteEmails(fullName: string, domain: string) {
+export function permuteEmails(fullName: string, domain: string, extended = false) {
   const { first, last } = splitName(fullName);
 
   if (!domain || !first) {
     return [];
   }
 
-  const localParts = [
+  const baseParts = [
     { pattern: "first.last", localPart: `${first}.${last}` },
     { pattern: "flast", localPart: `${first[0] ?? ""}${last}` },
     { pattern: "firstlast", localPart: `${first}${last}` },
@@ -29,6 +29,15 @@ export function permuteEmails(fullName: string, domain: string) {
     { pattern: "last", localPart: last },
     { pattern: "first_last", localPart: `${first}_${last}` },
   ];
+
+  const extendedParts = [
+    { pattern: "f.last", localPart: `${first[0] ?? ""}.${last}` },
+    { pattern: "last.first", localPart: `${last}.${first}` },
+    { pattern: "lastfirst", localPart: `${last}${first}` },
+    { pattern: "lfirst", localPart: `${last[0] ?? ""}${first}` },
+  ];
+
+  const localParts = extended ? [...baseParts, ...extendedParts] : baseParts;
 
   const seen = new Set<string>();
 

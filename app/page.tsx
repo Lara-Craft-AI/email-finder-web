@@ -16,6 +16,7 @@ type StreamEvent =
   | { type: "start"; total: number }
   | { type: "progress"; current: number; total: number; name: string }
   | ({ type: "result" } & EmailResult)
+  | { type: "second_pass_start"; count: number }
   | { type: "complete"; results: EmailResult[] }
   | { type: "error"; message: string };
 
@@ -116,6 +117,12 @@ export default function Home() {
             setCurrent(event.current);
             setTotal(event.total);
             setActiveName(event.name);
+          }
+
+          if (event.type === "second_pass_start") {
+            setCurrent(0);
+            setTotal(event.count);
+            setActiveName(`Second pass: ${event.count} not_found leads`);
           }
 
           if (event.type === "result") {

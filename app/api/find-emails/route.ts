@@ -4,7 +4,7 @@ import { resolveDomain } from "@/lib/resolve-domain";
 import type { EmailResult, LeadInput } from "@/lib/types";
 
 const encoder = new TextEncoder();
-const MAX_CONCURRENCY = 10;
+const MAX_CONCURRENCY = 25;
 
 function sseEvent(type: string, data: unknown) {
   return encoder.encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -36,6 +36,7 @@ async function processLead(
   lead: LeadInput,
   reoonApiKey: string,
   domainCache: Map<string, Promise<string>>,
+  extended = false,
 ) {
   const trimmedCompany = lead.company.trim();
   let domainPromise = domainCache.get(trimmedCompany);
@@ -46,7 +47,7 @@ async function processLead(
   }
 
   const domain = await domainPromise;
-  const candidates = permuteEmails(lead.name, domain);
+  const candidates = permuteEmails(lead.name, domain, extended);
   const verifications = candidates.length ? await verifyCandidates(candidates, reoonApiKey) : [];
   const winner = pickBestVerification(verifications);
   const fallbackStatus = domain ? "not_found" : "unresolved_domain";
@@ -106,6 +107,39 @@ export async function POST(request: Request) {
             }),
           ),
         );
+
+        // Second pass: retry not_found leads with extended permutations
+        const notFoundIndices = results
+          .map((r, i) => (r.status === "not_found" ? i : -1))
+          .filter((i) => i !== -1);
+
+        if (notFoundIndices.length > 0) {
+          controller.enqueue(
+            sseEvent("second_pass_start", { count: notFoundIndices.length }),
+          );
+
+          let secondCompleted = 0;
+
+          await Promise.all(
+            notFoundIndices.map((index) =>
+              limit(async () => {
+                const lead = leads[index];
+                const result = await processLead(lead, reoonApiKey, domainCache, true);
+                results[index] = result;
+                secondCompleted += 1;
+
+                controller.enqueue(
+                  sseEvent("progress", {
+                    current: secondCompleted,
+                    total: notFoundIndices.length,
+                    name: lead.name,
+                  }),
+                );
+                controller.enqueue(sseEvent("result", result));
+              }),
+            ),
+          );
+        }
 
         controller.enqueue(sseEvent("complete", { results }));
         controller.close();
