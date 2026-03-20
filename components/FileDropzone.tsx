@@ -76,23 +76,26 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
       }
 
       const headers = rows[0].map((cell) => cell.trim().toLowerCase());
-      const nameIndex = headers.indexOf("name");
+      const firstNameIndex = headers.indexOf("first_name");
+      const lastNameIndex = headers.indexOf("last_name");
       const companyIndex = headers.indexOf("company");
 
-      if (nameIndex === -1 || companyIndex === -1) {
-        throw new Error('CSV must include "name" and "company" columns.');
+      if (firstNameIndex === -1 || lastNameIndex === -1 || companyIndex === -1) {
+        throw new Error('CSV must include "first_name", "last_name", and "company" columns.');
       }
 
       const leads = rows
         .slice(1)
         .map((row) => ({
-          name: row[nameIndex]?.trim() ?? "",
+          name: [row[firstNameIndex]?.trim() ?? "", row[lastNameIndex]?.trim() ?? ""]
+            .filter(Boolean)
+            .join(" "),
           company: row[companyIndex]?.trim() ?? "",
         }))
         .filter((lead) => lead.name && lead.company);
 
       if (!leads.length) {
-        throw new Error("No valid rows found. Add at least one name and company.");
+        throw new Error("No valid rows found. Add at least one first_name, last_name, and company.");
       }
 
       setFileName(file.name);
@@ -122,7 +125,7 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
     <Card>
       <CardHeader>
         <CardTitle>Upload your CSV</CardTitle>
-        <CardDescription>Use a CSV with `name` and `company` columns.</CardDescription>
+        <CardDescription>Use a CSV with `first_name,last_name,company` columns.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div
@@ -157,6 +160,11 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
           >
             Choose CSV
           </Button>
+          <div className="mt-3 text-sm">
+            <a href="/sample.csv" className="font-medium text-zinc-700 underline underline-offset-4 hover:text-zinc-900">
+              Download sample CSV
+            </a>
+          </div>
         </div>
         {fileName ? <p className="text-sm text-zinc-600">Loaded: {fileName}</p> : null}
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
