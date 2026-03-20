@@ -16,15 +16,28 @@ import {
 import type { EmailResult } from "@/lib/types";
 
 const PAGE_SIZE = 10;
+const GRADE_ORDER = { A: 0, B: 1, C: 2 } as const;
+
+type GradeFilter = "all" | "A" | "B" | "C";
 
 function statusVariant(status: string) {
   if (status === "valid" || status === "safe_to_send") {
     return "success" as const;
   }
-  if (status === "catchall") {
+  if (status === "catch_all") {
     return "warning" as const;
   }
   return "secondary" as const;
+}
+
+function gradeBadgeClass(grade: EmailResult["grade"]) {
+  if (grade === "A") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  if (grade === "B") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+  return "border-rose-200 bg-rose-50 text-rose-700";
 }
 
 function escapeCell(value: string) {
@@ -41,34 +54,72 @@ function splitName(name: string) {
 
 export function ResultsTable({ results }: { results: EmailResult[] }) {
   const [page, setPage] = useState(1);
+  const [activeFilter, setActiveFilter] = useState<GradeFilter>("all");
 
-  const validResults = useMemo(
-    () => results.filter((result) => result.status === "valid"),
+  const verifiedCount = useMemo(
+    () => results.filter((result) => result.status === "valid" || result.status === "safe_to_send").length,
     [results],
   );
 
-  const validCsv = useMemo(() => {
+  const sortedResults = useMemo(() => {
+    const copy = [...results];
+    copy.sort((left, right) => {
+      const leftGrade = left.grade ? GRADE_ORDER[left.grade] : Number.MAX_SAFE_INTEGER;
+      const rightGrade = right.grade ? GRADE_ORDER[right.grade] : Number.MAX_SAFE_INTEGER;
+
+      if (leftGrade !== rightGrade) {
+        return leftGrade - rightGrade;
+      }
+
+      return left.name.localeCompare(right.name);
+    });
+    return copy;
+  }, [results]);
+
+  const filteredResults = useMemo(
+    () =>
+      sortedResults.filter((result) => {
+        if (activeFilter === "all") {
+          return true;
+        }
+
+        return result.grade === activeFilter;
+      }),
+    [activeFilter, sortedResults],
+  );
+
+  const filteredCsv = useMemo(() => {
     const lines = [
-      ["first_name", "last_name", "company", "email"].map(escapeCell).join(","),
-      ...validResults.map((row) => {
+      ["first_name", "last_name", "company", "email", "grade", "domain_match_risk"]
+        .map(escapeCell)
+        .join(","),
+      ...filteredResults.map((row) => {
         const { firstName, lastName } = splitName(row.name);
-        return [firstName, lastName, row.company, row.email].map(escapeCell).join(",");
+        return [
+          firstName,
+          lastName,
+          row.company,
+          row.email,
+          row.grade ?? "",
+          row.domain_match_risk ?? "",
+        ]
+          .map(escapeCell)
+          .join(",");
       }),
     ];
     return lines.join("\n");
-  }, [validResults]);
+  }, [filteredResults]);
 
-  const foundCount = results.filter((result) => result.email).length;
-  const totalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredResults.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const pageResults = results.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageResults = filteredResults.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  function downloadValidCsv() {
-    const blob = new Blob([validCsv], { type: "text/csv;charset=utf-8;" });
+  function downloadFilteredCsv() {
+    const blob = new Blob([filteredCsv], { type: "text/csv;charset=utf-8;" });
     const href = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = href;
-    link.download = "email-finder-valid-emails.csv";
+    link.download = `email-finder-${activeFilter === "all" ? "all-results" : `grade-${activeFilter.toLowerCase()}`}.csv`;
     link.click();
     URL.revokeObjectURL(href);
   }
@@ -78,21 +129,43 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
       <CardHeader>
         <CardTitle>Results</CardTitle>
         <CardDescription>
-          {foundCount} of {results.length} leads returned a verified email.
+          {verifiedCount} of {results.length} leads returned a verified email.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-zinc-500">{validResults.length} rows eligible for export.</p>
-          <Button variant="outline" onClick={downloadValidCsv} disabled={!validResults.length}>
-            Export valid emails
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "all", label: "All" },
+              { key: "A", label: "Grade A" },
+              { key: "B", label: "Grade B" },
+              { key: "C", label: "Grade C / Suspect" },
+            ].map((tab) => (
+              <Button
+                key={tab.key}
+                variant={activeFilter === tab.key ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setActiveFilter(tab.key as GradeFilter);
+                  setPage(1);
+                }}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
+          <Button variant="outline" onClick={downloadFilteredCsv} disabled={!filteredResults.length}>
+            Export filtered results
           </Button>
         </div>
+        <p className="text-sm text-zinc-500">{filteredResults.length} rows match the active filter.</p>
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Grade</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Company</TableHead>
+              <TableHead>Domain</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
@@ -100,8 +173,16 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
           <TableBody>
             {pageResults.map((row) => (
               <TableRow key={`${row.name}-${row.company}`}>
+                <TableCell>
+                  {row.grade ? (
+                    <Badge className={gradeBadgeClass(row.grade)}>{row.grade}</Badge>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
                 <TableCell className="font-medium text-zinc-900">{row.name}</TableCell>
                 <TableCell>{row.company}</TableCell>
+                <TableCell className="text-sm text-zinc-500">{row.domain || "—"}</TableCell>
                 <TableCell>{row.email || "—"}</TableCell>
                 <TableCell>
                   <Badge variant={statusVariant(row.status)}>{row.status}</Badge>

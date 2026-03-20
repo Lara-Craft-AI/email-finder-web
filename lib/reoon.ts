@@ -1,9 +1,23 @@
-const WINNING_STATUSES = new Set(["valid", "safe_to_send", "catchall"]);
+import type { EmailStatus } from "@/lib/types";
+
+const WINNING_STATUSES = new Set<EmailStatus>(["valid", "safe_to_send", "catch_all"]);
 
 export type ReoonVerification = {
   status?: string;
   [key: string]: unknown;
 };
+
+export function normalizeReoonStatus(status?: string): EmailStatus {
+  if (status === "catchall" || status === "catch_all") {
+    return "catch_all";
+  }
+
+  if (status === "valid" || status === "safe_to_send" || status === "invalid") {
+    return status;
+  }
+
+  return status === "unknown" || status === "error" ? status : "unknown";
+}
 
 export async function verifyEmail(email: string, apiKey: string) {
   const url = new URL("https://emailverifier.reoon.com/api/v1/verify");
@@ -32,13 +46,13 @@ export async function verifyCandidates(
         const verification = await verifyEmail(candidate.email, apiKey);
         return {
           ...candidate,
-          status: verification.status ?? "unknown",
+          status: normalizeReoonStatus(verification.status),
           verification,
         };
       } catch {
         return {
           ...candidate,
-          status: "error",
+          status: "error" as EmailStatus,
           verification: null,
         };
       }
@@ -47,7 +61,7 @@ export async function verifyCandidates(
 }
 
 export function pickBestVerification(
-  results: Array<{ email: string; pattern: string; status: string }>,
+  results: Array<{ email: string; pattern: string; status: EmailStatus }>,
 ) {
   for (const status of WINNING_STATUSES) {
     const winner = results.find((result) => result.status === status);

@@ -1,5 +1,7 @@
 import { permuteEmails } from "@/lib/permute";
 import { pickBestVerification, verifyCandidates } from "@/lib/reoon";
+import { isRoleBasedEmail, scoreDomainSimilarity, scoreEmailQuality } from "@/lib/email-quality";
+import { getMxProfile } from "@/lib/mx";
 import { resolveDomain } from "@/lib/resolve-domain";
 import type { EmailResult, LeadInput } from "@/lib/types";
 
@@ -36,6 +38,7 @@ async function processLead(
   lead: LeadInput,
   reoonApiKey: string,
   domainCache: Map<string, Promise<string>>,
+  mxCache: Map<string, Promise<Awaited<ReturnType<typeof getMxProfile>>>>,
   extended = false,
 ) {
   const trimmedCompany = lead.company.trim();
@@ -47,18 +50,57 @@ async function processLead(
   }
 
   const domain = await domainPromise;
+  let mxPromise = mxCache.get(domain);
+
+  if (!mxPromise) {
+    mxPromise = getMxProfile(domain);
+    mxCache.set(domain, mxPromise);
+  }
+
+  const mxProfile = await mxPromise;
+  const { similarity, domainMatchRisk } = scoreDomainSimilarity(domain, lead.company);
+  const fallbackStatus = !domain || !mxProfile.hasMx ? "unresolved_domain" : "not_found";
+
+  if (!domain || !mxProfile.hasMx) {
+    return {
+      name: lead.name,
+      company: lead.company,
+      domain,
+      email: "",
+      pattern: "",
+      status: fallbackStatus,
+      domain_match_risk: domainMatchRisk,
+      mx_provider: mxProfile.mxProvider,
+      grade: "C",
+      confidence_score: 0,
+    } satisfies EmailResult;
+  }
+
   const candidates = permuteEmails(lead.name, domain, extended);
   const verifications = candidates.length ? await verifyCandidates(candidates, reoonApiKey) : [];
   const winner = pickBestVerification(verifications);
-  const fallbackStatus = domain ? "not_found" : "unresolved_domain";
+  const email = winner?.email ?? "";
+  const status = winner?.status ?? fallbackStatus;
+  const { confidenceScore, grade } = scoreEmailQuality({
+    email,
+    status,
+    similarity,
+    domainMatchRisk,
+    mxProvider: mxProfile.mxProvider,
+    isRoleBased: isRoleBasedEmail(email),
+  });
 
   return {
     name: lead.name,
     company: lead.company,
     domain,
-    email: winner?.email ?? "",
+    email,
     pattern: winner?.pattern ?? "",
-    status: winner?.status ?? fallbackStatus,
+    status,
+    domain_match_risk: domainMatchRisk,
+    mx_provider: mxProfile.mxProvider,
+    grade,
+    confidence_score: confidenceScore,
   } satisfies EmailResult;
 }
 
@@ -83,6 +125,7 @@ export async function POST(request: Request) {
     async start(controller) {
       const results: EmailResult[] = new Array(leads.length);
       const domainCache = new Map<string, Promise<string>>();
+      const mxCache = new Map<string, Promise<Awaited<ReturnType<typeof getMxProfile>>>>();
       const limit = createLimiter(MAX_CONCURRENCY);
       let completed = 0;
 
@@ -92,7 +135,7 @@ export async function POST(request: Request) {
         await Promise.all(
           leads.map((lead, index) =>
             limit(async () => {
-              const result = await processLead(lead, reoonApiKey, domainCache);
+              const result = await processLead(lead, reoonApiKey, domainCache, mxCache);
               results[index] = result;
               completed += 1;
 
@@ -124,7 +167,7 @@ export async function POST(request: Request) {
             notFoundIndices.map((index) =>
               limit(async () => {
                 const lead = leads[index];
-                const result = await processLead(lead, reoonApiKey, domainCache, true);
+                const result = await processLead(lead, reoonApiKey, domainCache, mxCache, true);
                 results[index] = result;
                 secondCompleted += 1;
 
