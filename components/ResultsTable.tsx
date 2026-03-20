@@ -171,7 +171,7 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-1 rounded-lg border border-zinc-200 p-1">
+          <div className="flex gap-1 overflow-x-auto rounded-lg border border-zinc-200 p-1">
             {filterTabs.map((tab) => (
               <button
                 key={tab.key}
@@ -180,7 +180,7 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
                   setActiveFilter(tab.key);
                   setPage(1);
                 }}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`min-h-[36px] shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   activeFilter === tab.key
                     ? "bg-zinc-900 text-white"
                     : "text-zinc-500 hover:text-zinc-700"
@@ -191,57 +191,90 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
               </button>
             ))}
           </div>
-          <Button variant="outline" size="sm" onClick={downloadFilteredCsv} disabled={!filteredResults.length}>
+          <Button className="w-full sm:w-auto" variant="outline" size="sm" onClick={downloadFilteredCsv} disabled={!filteredResults.length}>
             Export CSV
           </Button>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Grade</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Company</TableHead>
-              <TableHead>Domain</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {pageResults.map((row) => {
-              const label = gradeLabel(row.grade);
-              const tooltip = gradeTooltip(row.grade);
-              return (
-                <TableRow key={`${row.name}\x00${row.company}`}>
-                  <TableCell>
-                    {label ? (
-                      <span className="inline-flex items-center gap-1" title={tooltip}>
-                        <Badge className={gradeBadgeClass(row.grade)}>{label}</Badge>
-                        {tooltip && (
-                          <span
-                            className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-amber-500/30 text-[10px] text-amber-600"
-                            title={tooltip}
-                          >
-                            ?
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-zinc-300">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-medium text-zinc-800">{row.name}</TableCell>
-                  <TableCell>{row.company}</TableCell>
-                  <TableCell className="text-zinc-400 font-mono text-xs">{row.domain || "—"}</TableCell>
-                  <TableCell className="font-mono text-xs">{row.email || "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        {/* Mobile card layout */}
+        <div className="space-y-3 sm:hidden">
+          {pageResults.map((row) => {
+            const label = gradeLabel(row.grade);
+            const tooltip = gradeTooltip(row.grade);
+            return (
+              <div key={`${row.name}\x00${row.company}`} className="rounded-lg border border-zinc-200 p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-zinc-800 text-sm">{row.name}</span>
+                  {label ? (
+                    <span className="inline-flex items-center gap-1" title={tooltip}>
+                      <Badge className={gradeBadgeClass(row.grade)}>{label}</Badge>
+                    </span>
+                  ) : null}
+                </div>
+                <div className="text-xs text-zinc-500">{row.company}</div>
+                {row.email ? (
+                  <div className="font-mono text-xs text-zinc-700 break-all">{row.email}</div>
+                ) : (
+                  <div className="text-xs text-zinc-300">No email found</div>
+                )}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs text-zinc-400">{row.domain || "—"}</span>
+                  <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table layout */}
+        <div className="hidden sm:block">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Grade</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Domain</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pageResults.map((row) => {
+                const label = gradeLabel(row.grade);
+                const tooltip = gradeTooltip(row.grade);
+                return (
+                  <TableRow key={`${row.name}\x00${row.company}`}>
+                    <TableCell>
+                      {label ? (
+                        <span className="inline-flex items-center gap-1" title={tooltip}>
+                          <Badge className={gradeBadgeClass(row.grade)}>{label}</Badge>
+                          {tooltip && (
+                            <span
+                              className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-amber-500/30 text-[10px] text-amber-600"
+                              title={tooltip}
+                            >
+                              ?
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-zinc-300">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium text-zinc-800">{row.name}</TableCell>
+                    <TableCell>{row.company}</TableCell>
+                    <TableCell className="text-zinc-400 font-mono text-xs">{row.domain || "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{row.email || "—"}</TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
 
         <div className="flex items-center justify-between gap-4">
           <Button

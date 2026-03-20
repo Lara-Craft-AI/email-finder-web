@@ -197,12 +197,12 @@ export default function Home() {
   ];
 
   return (
-    <main className="min-h-screen bg-white px-6 py-16">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">
+    <main className="min-h-screen bg-white px-4 py-8 sm:px-6 sm:py-16">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 sm:gap-10">
         <section className="space-y-6">
           <div className="space-y-3">
             <p className="text-xs font-medium uppercase tracking-widest text-zinc-400">Email Finder</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-zinc-900">
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
               Find verified emails for $0.001 each.
             </h1>
             <p className="text-[15px] leading-relaxed text-zinc-500">
@@ -212,8 +212,8 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-zinc-200 text-sm">
-            <div className="grid grid-cols-3 border-b border-zinc-200 px-4 py-2.5 text-xs font-medium text-zinc-400">
+          <div className="overflow-hidden rounded-xl border border-zinc-200 text-xs sm:text-sm">
+            <div className="grid grid-cols-3 border-b border-zinc-200 px-3 py-2.5 text-xs font-medium text-zinc-400 sm:px-4">
               <span></span>
               <span>Apollo</span>
               <span className="text-zinc-700">Email Finder</span>
@@ -225,14 +225,14 @@ export default function Home() {
                 ["10,000 emails", "$500-1,000", "~$10"],
                 ["Verification", "Bundled", "SMTP verified"],
               ].map(([label, apollo, ours]) => (
-                <div key={label} className="grid grid-cols-3 px-4 py-3">
+                <div key={label} className="grid grid-cols-3 px-3 py-2.5 sm:px-4 sm:py-3">
                   <span className="text-zinc-500">{label}</span>
                   <span className="text-zinc-400">{apollo}</span>
                   <span className="font-medium text-zinc-800">{ours}</span>
                 </div>
               ))}
             </div>
-            <div className="border-t border-zinc-200 px-4 py-2.5 text-xs text-zinc-400">
+            <div className="border-t border-zinc-200 px-3 py-2.5 text-xs text-zinc-400 sm:px-4">
               Powered by{" "}
               <a
                 href="https://reoon.com"
@@ -247,12 +247,12 @@ export default function Home() {
           </div>
         </section>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto">
           {steps.map((step, i) => (
-            <div key={step.label} className="flex items-center gap-2">
+            <div key={step.label} className="flex shrink-0 items-center gap-2">
               {i > 0 && <div className="h-px w-4 bg-zinc-200" />}
               <div
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   step.done
                     ? "bg-zinc-900 text-white"
                     : "border border-zinc-200 text-zinc-400"
@@ -305,10 +305,10 @@ export default function Home() {
               to get an API key
             </div>
           </div>
-          <CardHeader>
+          <CardHeader className="pr-14">
             <CardTitle>Reoon API key</CardTitle>
-            <CardDescription className="flex items-center gap-1.5">
-              <Lock size={13} className="text-zinc-400" />
+            <CardDescription className="flex items-start gap-1.5">
+              <Lock size={13} className="mt-0.5 shrink-0 text-zinc-400" />
               Your key is sent over HTTPS, used once to verify emails, and never stored or shared.
             </CardDescription>
           </CardHeader>
@@ -360,10 +360,10 @@ export default function Home() {
               — free tier gives 2,000 queries/month
             </div>
           </div>
-          <CardHeader>
+          <CardHeader className="pr-14">
             <CardTitle>Brave API key <span className="text-sm font-normal text-zinc-400">(optional)</span></CardTitle>
-            <CardDescription className="flex items-center gap-1.5">
-              <Lock size={13} className="text-zinc-400" />
+            <CardDescription className="flex items-start gap-1.5">
+              <Lock size={13} className="mt-0.5 shrink-0 text-zinc-400" />
               Improves company domain resolution. Falls back to Clearbit if not provided.
             </CardDescription>
           </CardHeader>
@@ -374,9 +374,10 @@ export default function Home() {
               onChange={(event) => setBraveApiKey(event.target.value)}
             />
             <Separator />
-            <div className="flex items-center justify-between gap-4 text-sm text-zinc-500">
+            <div className="flex flex-col gap-3 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <span>{leads.length} leads ready</span>
               <Button
+                className="w-full sm:w-auto"
                 disabled={!leads.length || !reoonApiKey.trim() || isRunning}
                 onClick={() => void runFinder()}
               >

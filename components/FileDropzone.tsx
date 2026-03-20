@@ -147,8 +147,9 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
             setIsDragging(false);
             void handleFiles(event.dataTransfer.files);
           }}
+          onClick={() => inputRef.current?.click()}
           className={cn(
-            "rounded-lg border border-dashed p-8 text-center transition-colors",
+            "cursor-pointer rounded-lg border border-dashed p-6 text-center transition-colors sm:p-8",
             isDragging ? "border-zinc-400 bg-zinc-50" : "border-zinc-200 bg-transparent",
           )}
         >
@@ -159,21 +160,28 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
             className="hidden"
             onChange={(event) => void handleFiles(event.target.files)}
           />
-          <p className="text-sm font-medium text-zinc-700">Drag and drop your CSV here</p>
-          <p className="mt-2 text-sm text-zinc-400">
+          <p className="text-sm font-medium text-zinc-700">
+            <span className="hidden sm:inline">Drag and drop your CSV here</span>
+            <span className="sm:hidden">Tap to upload your CSV</span>
+          </p>
+          <p className="mt-2 text-xs text-zinc-400 sm:text-sm">
             Columns must include &quot;first&quot;, &quot;last&quot;, and
             &quot;company&quot; (any naming works).
           </p>
           <Button
             className="mt-4"
             variant="outline"
-            size="sm"
-            onClick={() => inputRef.current?.click()}
+            size="default"
+            onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
           >
             Choose CSV
           </Button>
           <div className="mt-3 text-xs">
-            <a href="/sample.csv" className="text-zinc-400 underline underline-offset-4 hover:text-zinc-600">
+            <a
+              href="/sample.csv"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-block min-h-[44px] content-center text-zinc-400 underline underline-offset-4 hover:text-zinc-600"
+            >
               Download sample CSV
             </a>
           </div>
