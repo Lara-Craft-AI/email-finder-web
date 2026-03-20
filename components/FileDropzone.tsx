@@ -125,7 +125,9 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
     <Card>
       <CardHeader>
         <CardTitle>Upload your CSV</CardTitle>
-        <CardDescription>Use a CSV with `first_name,last_name,company` columns.</CardDescription>
+        <CardDescription>
+          Expected CSV format: `first_name,last_name,company`.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div
@@ -152,7 +154,9 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
             onChange={(event) => void handleFiles(event.target.files)}
           />
           <p className="text-sm font-medium text-zinc-900">Drag and drop your CSV here</p>
-          <p className="mt-2 text-sm text-zinc-500">or choose a file from your computer</p>
+          <p className="mt-2 text-sm text-zinc-500">
+            Include `first_name`, `last_name`, and `company`, or use the sample file below.
+          </p>
           <Button
             className="mt-4"
             variant="outline"
