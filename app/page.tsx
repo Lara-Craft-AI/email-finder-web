@@ -37,8 +37,12 @@ function parseSseChunk(chunk: string) {
     }
 
     const type = eventLine.replace("event:", "").trim();
-    const payload = JSON.parse(dataLine.replace("data:", "").trim()) as Omit<StreamEvent, "type">;
-    parsed.push({ type, ...payload } as StreamEvent);
+    try {
+      const payload = JSON.parse(dataLine.replace("data:", "").trim()) as Omit<StreamEvent, "type">;
+      parsed.push({ type, ...payload } as StreamEvent);
+    } catch {
+      // Skip malformed SSE messages instead of crashing the stream
+    }
   }
 
   return parsed;
@@ -98,13 +102,19 @@ export default function Home() {
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) {
-          break;
+
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
         }
 
-        buffer += decoder.decode(value, { stream: true });
+        if (done) {
+          // Flush remaining decoder bytes
+          buffer += decoder.decode();
+        }
+
         const boundary = buffer.lastIndexOf("\n\n");
         if (boundary === -1) {
+          if (done) break;
           continue;
         }
 
@@ -160,36 +170,51 @@ export default function Home() {
             throw new Error(event.message);
           }
         }
+
+        if (done) break;
       }
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unexpected error.");
     } finally {
+      isSecondPassRef.current = false;
       setIsRunning(false);
+      setCurrent(0);
+      setTotal(0);
+      setActiveName("");
     }
   }
 
+  const steps = [
+    { label: "Upload", done: stepState.upload },
+    { label: "API key", done: stepState.key },
+    { label: "Run", done: stepState.run },
+    { label: "Results", done: stepState.results },
+    { label: "Download", done: stepState.results },
+  ];
+
   return (
-    <main className="min-h-screen bg-white px-6 py-12">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
+    <main className="min-h-screen bg-[#0a0a0b] px-6 py-16">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">
         <section className="space-y-6">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Email Finder</p>
-            <h1 className="text-4xl font-semibold tracking-tight text-zinc-900">
-              Find verified emails for <span className="text-zinc-900">$0.001 each.</span>
+          <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-widest text-zinc-600">Email Finder</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-zinc-100">
+              Find verified emails for $0.001 each.
             </h1>
-            <p className="text-base leading-7 text-zinc-500">
-              Apollo charges $0.05-0.10 per email. We use SMTP verification directly - same
+            <p className="text-[15px] leading-relaxed text-zinc-500">
+              Apollo charges $0.05-0.10 per email. We use SMTP verification directly — same
               accuracy, 50-100x cheaper. Upload a CSV, paste your Reoon key, download verified
               results.
             </p>
           </div>
-          <div className="overflow-hidden rounded-xl border border-zinc-200 text-sm">
-            <div className="grid grid-cols-3 bg-zinc-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+
+          <div className="overflow-hidden rounded-xl border border-white/[0.06] text-sm">
+            <div className="grid grid-cols-3 border-b border-white/[0.06] px-4 py-2.5 text-xs font-medium text-zinc-600">
               <span></span>
               <span>Apollo</span>
-              <span className="text-zinc-900">Email Finder</span>
+              <span className="text-zinc-300">Email Finder</span>
             </div>
-            <div className="divide-y divide-zinc-100">
+            <div className="divide-y divide-white/[0.04]">
               {[
                 ["Per email", "$0.05-0.10", "~$0.001"],
                 ["1,000 emails", "$50-100", "~$1"],
@@ -198,52 +223,42 @@ export default function Home() {
               ].map(([label, apollo, ours]) => (
                 <div key={label} className="grid grid-cols-3 px-4 py-3">
                   <span className="text-zinc-500">{label}</span>
-                  <span className="text-zinc-400">{apollo}</span>
-                  <span className="font-medium text-zinc-900">{ours}</span>
+                  <span className="text-zinc-600">{apollo}</span>
+                  <span className="font-medium text-zinc-200">{ours}</span>
                 </div>
               ))}
             </div>
-            <div className="border-t border-zinc-100 bg-zinc-50 px-4 py-2.5 text-xs text-zinc-400">
+            <div className="border-t border-white/[0.06] px-4 py-2.5 text-xs text-zinc-600">
               Powered by{" "}
               <a
                 href="https://reoon.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-zinc-600"
+                className="underline hover:text-zinc-400"
               >
                 Reoon
               </a>{" "}
-              - bring your own key, pay only for what you verify.
+              — bring your own key, pay only for what you verify.
             </div>
           </div>
         </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Flow</CardTitle>
-            <CardDescription>Upload, configure, run, review, and download in one page.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3 text-sm sm:grid-cols-5">
-              {[
-                { label: "1. Upload", complete: stepState.upload },
-                { label: "2. API key", complete: stepState.key },
-                { label: "3. Run", complete: stepState.run },
-                { label: "4. Results", complete: stepState.results },
-                { label: "5. Download", complete: stepState.results },
-              ].map(({ label, complete }) => (
-                <div
-                  key={label}
-                  className={`rounded-md border px-3 py-2 ${
-                    complete ? "border-zinc-900 bg-zinc-900 text-white" : "border-zinc-200 text-zinc-500"
-                  }`}
-                >
-                  {label}
-                </div>
-              ))}
+        <div className="flex items-center gap-2">
+          {steps.map((step, i) => (
+            <div key={step.label} className="flex items-center gap-2">
+              {i > 0 && <div className="h-px w-4 bg-white/[0.06]" />}
+              <div
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  step.done
+                    ? "bg-white text-zinc-900"
+                    : "border border-white/[0.08] text-zinc-600"
+                }`}
+              >
+                {step.label}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          ))}
+        </div>
 
         <FileDropzone onLeadsParsed={setLeads} />
 
@@ -261,14 +276,14 @@ export default function Home() {
               onClick={() => setIsApiKeyInfoOpen((previous) => !previous)}
               onFocus={() => setIsApiKeyInfoOpen(true)}
               onBlur={() => setIsApiKeyInfoOpen(false)}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-500 transition-colors hover:border-zinc-300 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-300 focus-visible:ring-offset-2"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-white/[0.08] text-zinc-600 transition-colors hover:border-white/[0.15] hover:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-600 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0b]"
             >
               <Info size={14} />
             </button>
             <div
               id={apiKeyInfoId}
               role="tooltip"
-              className={`absolute top-9 right-0 w-64 rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs leading-5 text-zinc-600 shadow-lg transition-all ${
+              className={`absolute top-9 right-0 w-64 rounded-lg border border-white/[0.08] bg-zinc-900 px-3 py-2 text-xs leading-5 text-zinc-400 shadow-xl transition-all ${
                 isApiKeyInfoOpen
                   ? "pointer-events-auto translate-y-0 opacity-100"
                   : "pointer-events-none -translate-y-1 opacity-0"
@@ -279,7 +294,7 @@ export default function Home() {
                 href="https://www.reoon.com/email-verifier/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline underline-offset-2 hover:text-zinc-900"
+                className="underline underline-offset-2 hover:text-zinc-200"
               >
                 https://www.reoon.com/email-verifier/
               </a>{" "}
@@ -289,7 +304,7 @@ export default function Home() {
           <CardHeader>
             <CardTitle>Reoon API key</CardTitle>
             <CardDescription className="flex items-center gap-1.5">
-              <Lock size={13} className="text-zinc-400" />
+              <Lock size={13} className="text-zinc-600" />
               Your key is sent over HTTPS, used once to verify emails, and never stored or shared.
             </CardDescription>
           </CardHeader>
@@ -300,7 +315,7 @@ export default function Home() {
               onChange={(event) => setReoonApiKey(event.target.value)}
             />
             <Separator />
-            <div className="flex items-center justify-between gap-4 text-sm text-zinc-600">
+            <div className="flex items-center justify-between gap-4 text-sm text-zinc-500">
               <span>{leads.length} leads ready</span>
               <Button
                 disabled={!leads.length || !reoonApiKey.trim() || isRunning}
@@ -309,7 +324,7 @@ export default function Home() {
                 {isRunning ? "Running..." : "Run email finder"}
               </Button>
             </div>
-            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            {error ? <p className="text-sm text-red-400">{error}</p> : null}
           </CardContent>
         </Card>
 

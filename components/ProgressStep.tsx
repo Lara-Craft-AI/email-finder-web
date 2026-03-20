@@ -20,11 +20,11 @@ export function ProgressStep({
       </CardHeader>
       <CardContent className="space-y-4">
         <Progress value={value} />
-        <div className="flex items-center justify-between text-sm text-zinc-600">
+        <div className="flex items-center justify-between text-xs text-zinc-500">
           <span>
             {current} of {total}
           </span>
-          <span>{activeName || "Starting..."}</span>
+          <span className="font-mono">{activeName || "Starting..."}</span>
         </div>
       </CardContent>
     </Card>

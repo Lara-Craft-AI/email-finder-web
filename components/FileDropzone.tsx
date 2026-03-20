@@ -68,6 +68,11 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
 
   const parseFile = useCallback(
     async (file: File) => {
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error("CSV file is too large. Maximum size is 10 MB.");
+      }
+
       const text = (await file.text()).replace(/^\uFEFF/, "");
       const rows = parseCsv(text).filter((row) => row.some((cell) => cell.trim()));
 
@@ -144,7 +149,7 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
           }}
           className={cn(
             "rounded-lg border border-dashed p-8 text-center transition-colors",
-            isDragging ? "border-zinc-900 bg-zinc-50" : "border-zinc-200 bg-white",
+            isDragging ? "border-zinc-500 bg-white/[0.04]" : "border-white/[0.08] bg-transparent",
           )}
         >
           <input
@@ -154,26 +159,27 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
             className="hidden"
             onChange={(event) => void handleFiles(event.target.files)}
           />
-          <p className="text-sm font-medium text-zinc-900">Drag and drop your CSV here</p>
-          <p className="mt-2 text-sm text-zinc-500">
+          <p className="text-sm font-medium text-zinc-300">Drag and drop your CSV here</p>
+          <p className="mt-2 text-sm text-zinc-600">
             Columns must include &quot;first&quot;, &quot;last&quot;, and
-            &quot;company&quot; (any naming works). Download sample below.
+            &quot;company&quot; (any naming works).
           </p>
           <Button
             className="mt-4"
             variant="outline"
+            size="sm"
             onClick={() => inputRef.current?.click()}
           >
             Choose CSV
           </Button>
-          <div className="mt-3 text-sm">
-            <a href="/sample.csv" className="font-medium text-zinc-700 underline underline-offset-4 hover:text-zinc-900">
+          <div className="mt-3 text-xs">
+            <a href="/sample.csv" className="text-zinc-600 underline underline-offset-4 hover:text-zinc-400">
               Download sample CSV
             </a>
           </div>
         </div>
-        {fileName ? <p className="text-sm text-zinc-600">Loaded: {fileName}</p> : null}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {fileName ? <p className="text-sm text-zinc-500">Loaded: {fileName}</p> : null}
+        {error ? <p className="text-sm text-red-400">{error}</p> : null}
       </CardContent>
     </Card>
   );

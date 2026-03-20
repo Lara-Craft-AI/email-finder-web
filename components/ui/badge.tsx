@@ -12,16 +12,16 @@ export function Badge({
   children: ReactNode;
 }) {
   const variants = {
-    default: "border-transparent bg-zinc-900 text-white",
-    secondary: "border-zinc-200 bg-zinc-100 text-zinc-700",
-    success: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    warning: "border-amber-200 bg-amber-50 text-amber-700",
+    default: "border-transparent bg-white text-zinc-900",
+    secondary: "border-white/[0.06] bg-white/[0.04] text-zinc-500",
+    success: "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
+    warning: "border-amber-500/20 bg-amber-500/10 text-amber-400",
   };
 
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium",
         variants[variant],
         className,
       )}

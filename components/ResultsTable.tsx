@@ -25,7 +25,7 @@ const STATUS_ORDER: Record<string, number> = {
   unresolved_domain: 3,
 };
 
-type GradeFilter = "all" | "A" | "B" | "C" | "none";
+type GradeFilter = "all" | "A" | "B";
 
 function statusVariant(status: string) {
   if (status === "valid" || status === "safe_to_send") {
@@ -37,14 +37,20 @@ function statusVariant(status: string) {
   return "secondary" as const;
 }
 
+function gradeLabel(grade: EmailResult["grade"]): string | null {
+  if (grade === "A") return "Verified";
+  if (grade === "B") return "Review";
+  return null;
+}
+
 function gradeBadgeClass(grade: EmailResult["grade"]) {
   if (grade === "A") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-emerald-500/20 bg-emerald-500/10 text-emerald-400";
   }
   if (grade === "B") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
+    return "border-amber-500/20 bg-amber-500/10 text-amber-400";
   }
-  return "border-rose-200 bg-rose-50 text-rose-700";
+  return "";
 }
 
 function escapeCell(value: string) {
@@ -69,12 +75,10 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
   );
 
   const gradeCounts = useMemo(() => {
-    const counts = { A: 0, B: 0, C: 0, none: 0 };
+    const counts = { A: 0, B: 0 };
     for (const r of results) {
-      if (!r.email) counts.none++;
-      else if (r.grade === "A") counts.A++;
+      if (r.grade === "A") counts.A++;
       else if (r.grade === "B") counts.B++;
-      else if (r.grade === "C") counts.C++;
     }
     return counts;
   }, [results]);
@@ -100,9 +104,6 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
       sortedResults.filter((result) => {
         if (activeFilter === "all") {
           return true;
-        }
-        if (activeFilter === "none") {
-          return !result.email;
         }
         return result.grade === activeFilter;
       }),
@@ -146,6 +147,12 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
     URL.revokeObjectURL(href);
   }
 
+  const filterTabs = [
+    { key: "all" as const, label: "All", count: results.length },
+    { key: "A" as const, label: "Verified", count: gradeCounts.A },
+    { key: "B" as const, label: "Review", count: gradeCounts.B },
+  ];
+
   return (
     <Card>
       <CardHeader>
@@ -156,32 +163,31 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-2">
-            {[
-              { key: "all", label: `All (${results.length})` },
-              { key: "A", label: `Grade A (${gradeCounts.A})` },
-              { key: "B", label: `Grade B (${gradeCounts.B})` },
-              { key: "C", label: `Grade C (${gradeCounts.C})` },
-              { key: "none", label: `No email (${gradeCounts.none})` },
-            ].map((tab) => (
-              <Button
+          <div className="flex gap-1 rounded-lg border border-white/[0.06] p-1">
+            {filterTabs.map((tab) => (
+              <button
                 key={tab.key}
-                variant={activeFilter === tab.key ? "default" : "outline"}
-                size="sm"
+                type="button"
                 onClick={() => {
-                  setActiveFilter(tab.key as GradeFilter);
+                  setActiveFilter(tab.key);
                   setPage(1);
                 }}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  activeFilter === tab.key
+                    ? "bg-white text-zinc-900"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
               >
                 {tab.label}
-              </Button>
+                <span className="ml-1.5 text-[11px] opacity-60">{tab.count}</span>
+              </button>
             ))}
           </div>
-          <Button variant="outline" onClick={downloadFilteredCsv} disabled={!filteredResults.length}>
-            Export verified emails
+          <Button variant="outline" size="sm" onClick={downloadFilteredCsv} disabled={!filteredResults.length}>
+            Export CSV
           </Button>
         </div>
-        <p className="text-sm text-zinc-500">{filteredResults.length} rows match the active filter.</p>
+
         <Table>
           <TableHeader>
             <TableRow>
@@ -194,39 +200,45 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pageResults.map((row) => (
-              <TableRow key={`${row.name}\x00${row.company}`}>
-                <TableCell>
-                  {row.grade && (row.grade !== "C" || row.email) ? (
-                    <Badge className={gradeBadgeClass(row.grade)}>{row.grade}</Badge>
-                  ) : (
-                    <span className="text-zinc-400">—</span>
-                  )}
-                </TableCell>
-                <TableCell className="font-medium text-zinc-900">{row.name}</TableCell>
-                <TableCell>{row.company}</TableCell>
-                <TableCell className="text-sm text-zinc-500">{row.domain || "—"}</TableCell>
-                <TableCell>{row.email || "—"}</TableCell>
-                <TableCell>
-                  <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
-                </TableCell>
-              </TableRow>
-            ))}
+            {pageResults.map((row) => {
+              const label = gradeLabel(row.grade);
+              return (
+                <TableRow key={`${row.name}\x00${row.company}`}>
+                  <TableCell>
+                    {label ? (
+                      <Badge className={gradeBadgeClass(row.grade)}>{label}</Badge>
+                    ) : (
+                      <span className="text-zinc-700">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium text-zinc-200">{row.name}</TableCell>
+                  <TableCell>{row.company}</TableCell>
+                  <TableCell className="text-zinc-600 font-mono text-xs">{row.domain || "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{row.email || "—"}</TableCell>
+                  <TableCell>
+                    <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
+
         <div className="flex items-center justify-between gap-4">
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
             onClick={() => setPage((currentValue) => Math.max(1, currentValue - 1))}
             disabled={currentPage === 1}
           >
             Previous
           </Button>
-          <p className="text-sm text-zinc-500">
+          <p className="text-xs text-zinc-600">
             Page {currentPage} of {totalPages}
           </p>
           <Button
-            variant="outline"
+            variant="ghost"
+            size="sm"
             onClick={() => setPage((currentValue) => Math.min(totalPages, currentValue + 1))}
             disabled={currentPage === totalPages}
           >
