@@ -201,7 +201,7 @@ export default function Home() {
               Find verified emails for $0.001 each.
             </h1>
             <p className="text-[15px] leading-relaxed text-zinc-500">
-              50-100x cheaper than Apollo. Upload CSV → SMTP verify → download results.
+              50–100× cheaper than Apollo. Upload → verify → export.
             </p>
           </div>
 

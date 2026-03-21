@@ -161,10 +161,6 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
             <span className="hidden sm:inline">Drag and drop your CSV here</span>
             <span className="sm:hidden">Tap to upload your CSV</span>
           </p>
-          <p className="mt-2 text-xs text-zinc-400 sm:text-sm">
-            Columns must include &quot;first&quot;, &quot;last&quot;, and
-            &quot;company&quot; (any naming works).
-          </p>
           <Button
             className="mt-4"
             variant="outline"

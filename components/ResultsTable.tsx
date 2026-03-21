@@ -30,16 +30,6 @@ type GradeFilter = "all" | "A" | "B";
 const RISKY_TOOLTIP =
   "This domain accepts all emails — we cannot confirm this address exists. Use with caution.";
 
-function statusVariant(status: string) {
-  if (status === "valid" || status === "safe_to_send") {
-    return "success" as const;
-  }
-  if (status === "catch_all") {
-    return "warning" as const;
-  }
-  return "secondary" as const;
-}
-
 function gradeLabel(grade: EmailResult["grade"]): string | null {
   if (grade === "A") return "Verified";
   if (grade === "B" || grade === "C") return "Risky";
@@ -202,7 +192,7 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
             const label = gradeLabel(row.grade);
             const tooltip = gradeTooltip(row.grade);
             return (
-              <div key={`${row.name}\x00${row.company}`} className="rounded-lg border border-zinc-200 p-3 space-y-2">
+              <div key={`${row.name}\x00${row.company}`} className="rounded-lg border border-zinc-200 p-3 space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-zinc-800 text-sm">{row.name}</span>
                   {label ? (
@@ -217,10 +207,6 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
                 ) : (
                   <div className="text-xs text-zinc-300">No email found</div>
                 )}
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-xs text-zinc-400">{row.domain || "—"}</span>
-                  <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
-                </div>
               </div>
             );
           })}
@@ -231,12 +217,10 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Grade</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Company</TableHead>
-                <TableHead>Domain</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Grade</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -245,6 +229,9 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
                 const tooltip = gradeTooltip(row.grade);
                 return (
                   <TableRow key={`${row.name}\x00${row.company}`}>
+                    <TableCell className="font-medium text-zinc-800">{row.name}</TableCell>
+                    <TableCell>{row.company}</TableCell>
+                    <TableCell className="font-mono text-xs">{row.email || <span className="text-zinc-300">—</span>}</TableCell>
                     <TableCell>
                       {label ? (
                         <span className="inline-flex items-center gap-1" title={tooltip}>
@@ -261,13 +248,6 @@ export function ResultsTable({ results }: { results: EmailResult[] }) {
                       ) : (
                         <span className="text-zinc-300">—</span>
                       )}
-                    </TableCell>
-                    <TableCell className="font-medium text-zinc-800">{row.name}</TableCell>
-                    <TableCell>{row.company}</TableCell>
-                    <TableCell className="text-zinc-400 font-mono text-xs">{row.domain || "—"}</TableCell>
-                    <TableCell className="font-mono text-xs">{row.email || "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
                     </TableCell>
                   </TableRow>
                 );
