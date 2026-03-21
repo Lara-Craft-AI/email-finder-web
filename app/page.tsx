@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { Info, Lock } from "lucide-react";
 
 import { FileDropzone } from "@/components/FileDropzone";
@@ -12,56 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import type { EmailResult, LeadInput } from "@/lib/types";
 
-const BATCH_SIZE = 20;
-
-type BatchRequestBody = {
-  leads: LeadInput[];
-  reoonApiKey: string;
-  extended?: boolean;
-  offset?: number;
-};
-
-function chunkLeads(leads: LeadInput[], size: number) {
-  const chunks: LeadInput[][] = [];
-
-  for (let index = 0; index < leads.length; index += size) {
-    chunks.push(leads.slice(index, index + size));
-  }
-
-  return chunks;
-}
-
-function mergeResults(existing: EmailResult[], incoming: EmailResult[]) {
-  const merged = new Map<string, EmailResult>();
-
-  for (const result of existing) {
-    merged.set(`${result.name}\0${result.company}`, result);
-  }
-
-  for (const result of incoming) {
-    merged.set(`${result.name}\0${result.company}`, result);
-  }
-
-  return [...merged.values()];
-}
-
-async function fetchBatch(body: BatchRequestBody) {
-  const response = await fetch("/api/find-emails/batch", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(payload?.error ?? "Failed to process batch.");
-  }
-
-  return (await response.json()) as EmailResult[];
-}
-
 export default function Home() {
   const [leads, setLeads] = useState<LeadInput[]>([]);
   const [reoonApiKey, setReoonApiKey] = useState("");
@@ -69,10 +19,14 @@ export default function Home() {
   const [current, setCurrent] = useState(0);
   const [total, setTotal] = useState(0);
   const [activeName, setActiveName] = useState("");
+  const [activeLeadDetail, setActiveLeadDetail] = useState("");
+  const [verifiedCount, setVerifiedCount] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState("");
   const [isApiKeyInfoOpen, setIsApiKeyInfoOpen] = useState(false);
+  const [isSecondPass, setIsSecondPass] = useState(false);
   const apiKeyInfoId = useId();
+  const resultsRef = useRef<Map<string, EmailResult>>(new Map());
   const stepState = useMemo(
     () => ({
       upload: leads.length > 0,
@@ -83,67 +37,88 @@ export default function Home() {
     [isRunning, leads.length, reoonApiKey, results.length],
   );
 
+  const processStream = useCallback(async (response: Response) => {
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const chunks = buffer.split("\n\n");
+      buffer = chunks.pop()!;
+
+      for (const chunk of chunks) {
+        if (!chunk.trim()) continue;
+        const lines = chunk.split("\n");
+        let event = "";
+        let data = "";
+        for (const line of lines) {
+          if (line.startsWith("event: ")) event = line.slice(7);
+          else if (line.startsWith("data: ")) data = line.slice(6);
+        }
+        if (!event || !data) continue;
+
+        const parsed = JSON.parse(data);
+
+        if (event === "start") {
+          setTotal(parsed.total);
+        } else if (event === "progress") {
+          setCurrent(parsed.current);
+          setActiveName(`Processing lead ${parsed.current}/${parsed.total}`);
+          setActiveLeadDetail(parsed.name);
+        } else if (event === "result") {
+          const r = parsed as EmailResult;
+          resultsRef.current.set(`${r.name}\0${r.company}`, r);
+          setResults([...resultsRef.current.values()]);
+          if (r.status === "valid" || r.status === "safe_to_send") {
+            setVerifiedCount((prev) => prev + 1);
+          }
+        } else if (event === "second_pass_start") {
+          setIsSecondPass(true);
+          setCurrent(0);
+          setTotal(parsed.count);
+          setActiveName("Second pass — retrying with extended patterns");
+        } else if (event === "complete") {
+          const allResults = parsed.results as EmailResult[];
+          for (const r of allResults) {
+            resultsRef.current.set(`${r.name}\0${r.company}`, r);
+          }
+          setResults([...resultsRef.current.values()]);
+        } else if (event === "error") {
+          throw new Error(parsed.message);
+        }
+      }
+    }
+  }, []);
+
   async function runFinder() {
     setIsRunning(true);
     setError("");
     setResults([]);
     setCurrent(0);
     setTotal(leads.length);
-    setActiveName("");
+    setActiveName("Starting...");
+    setActiveLeadDetail("");
+    setVerifiedCount(0);
+    setIsSecondPass(false);
+    resultsRef.current = new Map();
 
     try {
-      const firstPassBatches = chunkLeads(leads, BATCH_SIZE);
-      let mergedResults: EmailResult[] = [];
-      let processedLeads = 0;
+      const response = await fetch("/api/find-emails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leads, reoonApiKey }),
+      });
 
-      for (const [batchIndex, batch] of firstPassBatches.entries()) {
-        setActiveName(`Processing batch ${batchIndex + 1}/${firstPassBatches.length}`);
-
-        const batchResults = await fetchBatch({
-          leads: batch,
-          reoonApiKey,
-          offset: batchIndex * BATCH_SIZE,
-        });
-
-        mergedResults = mergeResults(mergedResults, batchResults);
-        processedLeads += batch.length;
-
-        setResults(mergedResults);
-        setCurrent(processedLeads);
-        setTotal(leads.length);
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Failed to start processing.");
       }
 
-      const notFoundLeads = mergedResults
-        .filter((result) => result.status === "not_found")
-        .map(({ name, company }) => ({ name, company }));
-
-      if (notFoundLeads.length > 0) {
-        const secondPassBatches = chunkLeads(notFoundLeads, BATCH_SIZE);
-        let secondPassProcessed = 0;
-
-        setCurrent(0);
-        setTotal(notFoundLeads.length);
-
-        for (const [batchIndex, batch] of secondPassBatches.entries()) {
-          setActiveName(`Second pass batch ${batchIndex + 1}/${secondPassBatches.length}`);
-
-          const batchResults = await fetchBatch({
-            leads: batch,
-            reoonApiKey,
-            extended: true,
-            offset: batchIndex * BATCH_SIZE,
-          });
-
-          mergedResults = mergeResults(mergedResults, batchResults);
-          secondPassProcessed += batch.length;
-
-          setResults(mergedResults);
-          setCurrent(secondPassProcessed);
-          setTotal(notFoundLeads.length);
-        }
-      }
-
-      setResults(mergedResults);
+      await processStream(response);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unexpected error.");
     } finally {
@@ -151,6 +126,8 @@ export default function Home() {
       setCurrent(0);
       setTotal(0);
       setActiveName("");
+      setActiveLeadDetail("");
+      setIsSecondPass(false);
     }
   }
 
@@ -290,7 +267,16 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {(isRunning || current > 0) && <ProgressStep current={current} total={total} activeName={activeName} />}
+        {(isRunning || current > 0) && (
+          <ProgressStep
+            current={current}
+            total={total}
+            activeName={activeName}
+            activeLeadDetail={activeLeadDetail}
+            verifiedCount={verifiedCount}
+            isSecondPass={isSecondPass}
+          />
+        )}
 
         {results.length > 0 && <ResultsTable results={results} />}
       </div>

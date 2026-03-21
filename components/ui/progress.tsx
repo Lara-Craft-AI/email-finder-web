@@ -12,8 +12,11 @@ export function Progress({
   return (
     <div className={cn("relative h-1.5 w-full overflow-hidden rounded-full bg-zinc-100", className)}>
       <div
-        className="h-full rounded-full bg-zinc-900 transition-all"
-        style={{ width: `${clamped}%` }}
+        className="h-full rounded-full bg-zinc-900"
+        style={{
+          width: `${clamped}%`,
+          transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
       />
     </div>
   );
