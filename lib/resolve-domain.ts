@@ -11,9 +11,15 @@ const STRIP_SUFFIXES = new Set([
   "inc", "llc", "corp", "co", "ltd", "group", "services", "solutions",
 ]);
 
+// Pre-built lowercase lookup map for O(1) override lookup instead of O(n) linear scan
+const DOMAIN_OVERRIDES_LOWER = new Map<string, string>(
+  Object.entries(DOMAIN_OVERRIDES).map(([k, v]) => [k.toLowerCase(), v])
+);
+
 /**
  * Step 2: Generate slug candidates from the company name and check MX records.
- * Returns the first domain that has valid MX records, or null.
+ * All DNS lookups are fired in parallel; returns the first domain (by priority order)
+ * that has valid MX records, or null.
  */
 async function trySlugGuess(company: string): Promise<string | null> {
   // Normalize: lowercase, strip punctuation, remove common suffixes
@@ -26,7 +32,7 @@ async function trySlugGuess(company: string): Promise<string | null> {
 
   if (words.length === 0) return null;
 
-  // Generate slug candidates
+  // Generate slug candidates in priority order
   const candidates: string[] = [];
   candidates.push(words.join("") + ".com");           // barefootbooks.com
   if (words.length > 1) {
@@ -34,15 +40,21 @@ async function trySlugGuess(company: string): Promise<string | null> {
     candidates.push(words[0] + ".com");                // barefoot.com
   }
 
-  for (const domain of candidates) {
+  // Fire all DNS lookups in parallel for speed
+  const checks = candidates.map(async (domain) => {
     try {
       const records = await resolveMx(domain);
-      if (records && records.length > 0) {
-        return domain;
-      }
+      return records && records.length > 0 ? domain : null;
     } catch {
-      // No MX records or DNS failure — skip this candidate
+      return null;
     }
+  });
+
+  const results = await Promise.all(checks);
+
+  // Return highest-priority candidate that resolved
+  for (const result of results) {
+    if (result) return result;
   }
 
   return null;
@@ -55,14 +67,13 @@ export async function resolveDomain(company: string, braveApiKey?: string) {
     return { domain: "", source: "missing_company" };
   }
 
-  // ── Step 1: Domain override map (case-insensitive) ──
-  const overrideKey = Object.keys(DOMAIN_OVERRIDES).find(k => k.toLowerCase() === trimmed.toLowerCase());
-  const override = overrideKey ? DOMAIN_OVERRIDES[overrideKey] : undefined;
+  // ── Step 1: Domain override map (O(1) lookup via pre-built lowercase Map) ──
+  const override = DOMAIN_OVERRIDES_LOWER.get(trimmed.toLowerCase());
   if (override) {
     return { domain: override, source: "override" };
   }
 
-  // ── Step 2: Slug guess with MX check (free) ──
+  // ── Step 2: Slug guess with MX check (free, parallel DNS) ──
   try {
     const slugDomain = await trySlugGuess(trimmed);
     if (slugDomain) {
@@ -72,57 +83,69 @@ export async function resolveDomain(company: string, braveApiKey?: string) {
     // slug guess failed entirely, continue
   }
 
-  // ── Step 3: Clearbit autocomplete (free) ──
-  try {
-    const response = await fetch(
-      `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(trimmed)}`,
-      {
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-        signal: AbortSignal.timeout(10_000),
-      },
-    );
+  // ── Step 3 + 4: Race Clearbit (free) and Brave (paid) simultaneously ──
+  // Clearbit result is preferred if similarity is sufficient; Brave is the fallback.
+  const effectiveBraveKey = braveApiKey || process.env.BRAVE_API_KEY;
 
-    if (response.ok) {
+  const clearbitPromise = fetch(
+    `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(trimmed)}`,
+    {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
+    },
+  )
+    .then(async (response) => {
+      if (!response.ok) return null;
       const payload = (await response.json()) as Array<{ domain?: string }>;
       const domain = payload[0]?.domain ? normalizeDomain(payload[0].domain) : "";
+      if (!domain) return null;
+      const { similarity } = scoreDomainSimilarity(domain, trimmed);
+      return similarity >= 0.6 ? { domain, source: "clearbit" as const } : null;
+    })
+    .catch(() => null);
 
-      if (domain) {
-        const { similarity } = scoreDomainSimilarity(domain, trimmed);
-        if (similarity >= 0.6) {
-          return { domain, source: "clearbit" };
-        }
-        // similarity too low — fall through to Brave
-      }
-    }
-  } catch {
-    // Clearbit failed, continue to Brave
+  const bravePromise = effectiveBraveKey
+    ? fetch(
+        "https://api.search.brave.com/res/v1/web/search?q=" +
+          encodeURIComponent(trimmed + " official website") +
+          "&count=3",
+        {
+          headers: { "X-Subscription-Token": effectiveBraveKey, Accept: "application/json" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(8_000),
+        },
+      )
+        .then(async (braveRes) => {
+          if (!braveRes.ok) return null;
+          const braveData = (await braveRes.json()) as {
+            web?: { results?: Array<{ url?: string }> };
+          };
+          const firstUrl = braveData?.web?.results?.[0]?.url;
+          if (!firstUrl) return null;
+          const braveDomain = normalizeDomain(firstUrl);
+          if (!braveDomain) return null;
+          const { similarity } = scoreDomainSimilarity(braveDomain, trimmed);
+          return similarity >= 0.5 ? { domain: braveDomain, source: "brave" as const } : null;
+        })
+        .catch((error) => {
+          console.error(
+            `[resolve-domain] Brave search failed for "${trimmed}":`,
+            error instanceof Error ? error.message : error,
+          );
+          return null;
+        })
+    : Promise.resolve(null);
+
+  // Wait for both in parallel; prefer Clearbit if it passes quality threshold
+  const [clearbitResult, braveResult] = await Promise.all([clearbitPromise, bravePromise]);
+
+  if (clearbitResult) {
+    return clearbitResult;
   }
 
-  // ── Step 4: Brave API (paid, last resort) ──
-  const effectiveBraveKey = braveApiKey || process.env.BRAVE_API_KEY;
-  if (effectiveBraveKey) {
-    try {
-      const braveRes = await fetch(
-        "https://api.search.brave.com/res/v1/web/search?q=" + encodeURIComponent(trimmed + " official website") + "&count=3",
-        { headers: { "X-Subscription-Token": effectiveBraveKey, "Accept": "application/json" }, cache: "no-store", signal: AbortSignal.timeout(10_000) },
-      );
-      if (braveRes.ok) {
-        const braveData = await braveRes.json() as { web?: { results?: Array<{ url?: string }> } };
-        const firstUrl = braveData?.web?.results?.[0]?.url;
-        if (firstUrl) {
-          const braveDomain = normalizeDomain(firstUrl);
-          if (braveDomain) {
-            const { similarity } = scoreDomainSimilarity(braveDomain, trimmed);
-            if (similarity >= 0.5) {
-              return { domain: braveDomain, source: "brave" };
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error(`[resolve-domain] Brave search failed for "${trimmed}":`, error instanceof Error ? error.message : error);
-    }
+  if (braveResult) {
+    return braveResult;
   }
 
   // ── Step 5: Return null (unresolved) ──

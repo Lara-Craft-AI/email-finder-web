@@ -141,6 +141,28 @@ export async function processLeadBatch({
   const results: EmailResult[] = new Array(leads.length);
   const limit = createLimiter(MAX_REOON_CONCURRENCY);
 
+  if (!mockMode) {
+    // Pre-warm domain resolution and MX lookups for all leads in parallel,
+    // outside the Reoon concurrency limiter. This ensures DNS/HTTP fetches run
+    // at full concurrency without being throttled by the SMTP verification gate.
+    await Promise.all(
+      leads.map(async (lead) => {
+        const trimmedCompany = lead.company.trim();
+        if (!context.domainCache.has(trimmedCompany)) {
+          const domainPromise = resolveDomain(lead.company, braveApiKey).then(
+            (resolution) => resolution.domain,
+          );
+          context.domainCache.set(trimmedCompany, domainPromise);
+        }
+        // Kick off MX lookup as soon as domain promise is seeded
+        const domain = await context.domainCache.get(trimmedCompany)!;
+        if (domain && !context.mxCache.has(domain)) {
+          context.mxCache.set(domain, getMxProfile(domain));
+        }
+      }),
+    );
+  }
+
   await Promise.all(
     leads.map((lead, index) =>
       limit(async () => {

@@ -121,12 +121,20 @@ export async function POST(request: Request) {
         controller.close();
       } catch (error) {
         console.error("[find-emails] Stream error:", error);
-        controller.enqueue(
-          sseEvent("error", {
-            message: error instanceof Error ? error.message : "Unexpected error",
-          }),
-        );
-        controller.close();
+        try {
+          controller.enqueue(
+            sseEvent("error", {
+              message: error instanceof Error ? error.message : "Unexpected error",
+            }),
+          );
+        } catch {
+          // Client likely disconnected — enqueue failed, nothing to send
+        }
+        try {
+          controller.close();
+        } catch {
+          // Stream already closed
+        }
       }
     },
   });

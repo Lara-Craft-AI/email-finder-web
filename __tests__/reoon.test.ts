@@ -135,6 +135,7 @@ describe("verifyCandidates", () => {
   });
 
   it("stops early on valid", async () => {
+    // Wave size is 2: candidates 0+1 fire in parallel, winner found → candidate 2 skipped.
     vi.stubGlobal(
       "fetch",
       vi.fn()
@@ -154,6 +155,7 @@ describe("verifyCandidates", () => {
 
     const results = await verifyCandidates(candidates, "key");
 
+    // Wave 1 fires candidates 0+1; "valid" in wave 1 → wave 2 (candidate 2) skipped.
     expect(results).toHaveLength(2);
     expect(results[0].status).toBe("catch_all");
     expect(results[1].status).toBe("valid");
@@ -162,6 +164,7 @@ describe("verifyCandidates", () => {
   });
 
   it("stops early on safe_to_send", async () => {
+    // Wave size is 2: candidates 0+1 fire in parallel, winner found → candidate 2 skipped.
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -172,8 +175,12 @@ describe("verifyCandidates", () => {
 
     const results = await verifyCandidates(candidates, "key");
 
-    expect(results).toHaveLength(1);
+    // Wave 1 fires candidates 0+1; both are safe_to_send winners → wave 2 skipped.
+    expect(results).toHaveLength(2);
     expect(results[0].status).toBe("safe_to_send");
+    expect(results[1].status).toBe("safe_to_send");
+    // Only the first wave (2 candidates) should have been called
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("continues on catch_all and unknown", async () => {

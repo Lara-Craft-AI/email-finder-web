@@ -37,28 +37,47 @@ export async function verifyEmail(email: string, apiKey: string) {
   return (await response.json()) as ReoonVerification;
 }
 
+// Maximum number of Reoon verifications to run concurrently per lead.
+// Firing all candidates at once would waste API credits when the first is valid,
+// so we use a small wave size: start WAVE_SIZE requests concurrently, and as soon
+// as any wave contains a winning status we skip the remaining waves entirely.
+const VERIFY_WAVE_SIZE = 2;
+
 export async function verifyCandidates(
   candidates: Array<{ email: string; pattern: string }>,
   apiKey: string,
 ) {
   const results: Array<{ email: string; pattern: string; status: EmailStatus; verification: ReoonVerification | null }> = [];
 
-  for (const candidate of candidates) {
-    try {
-      const verification = await verifyEmail(candidate.email, apiKey);
-      const status = normalizeReoonStatus(verification.status);
-      results.push({ ...candidate, status, verification });
+  // Process candidates in waves: fire up to VERIFY_WAVE_SIZE at once.
+  // If a winner is found in a wave, skip the remaining waves entirely.
+  for (let i = 0; i < candidates.length; i += VERIFY_WAVE_SIZE) {
+    const wave = candidates.slice(i, i + VERIFY_WAVE_SIZE);
 
-      // Early exit: stop burning API credits once we find a valid email
-      if (status === "valid" || status === "safe_to_send") {
-        break;
-      }
-    } catch {
-      results.push({
-        ...candidate,
-        status: "error" as EmailStatus,
-        verification: null,
-      });
+    const waveResults = await Promise.all(
+      wave.map(async (candidate) => {
+        try {
+          const verification = await verifyEmail(candidate.email, apiKey);
+          const status = normalizeReoonStatus(verification.status);
+          return { ...candidate, status, verification };
+        } catch {
+          return {
+            ...candidate,
+            status: "error" as EmailStatus,
+            verification: null,
+          };
+        }
+      }),
+    );
+
+    results.push(...waveResults);
+
+    // Early exit: stop burning API credits once we find a valid email
+    const hasWinner = waveResults.some(
+      (r) => r.status === "valid" || r.status === "safe_to_send",
+    );
+    if (hasWinner) {
+      break;
     }
   }
 

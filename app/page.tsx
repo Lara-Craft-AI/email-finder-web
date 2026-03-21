@@ -38,7 +38,10 @@ export default function Home() {
   );
 
   const processStream = useCallback(async (response: Response) => {
-    const reader = response.body!.getReader();
+    if (!response.body) {
+      throw new Error("Response body is empty.");
+    }
+    const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
 
@@ -61,7 +64,14 @@ export default function Home() {
         }
         if (!event || !data) continue;
 
-        const parsed = JSON.parse(data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let parsed: any;
+        try {
+          parsed = JSON.parse(data);
+        } catch {
+          console.warn("[processStream] Skipping malformed SSE data:", data);
+          continue;
+        }
 
         if (event === "start") {
           setTotal(parsed.total);

@@ -1,6 +1,8 @@
 import { MAX_BATCH_SIZE, processLeadBatch } from "@/lib/find-emails";
 import type { LeadInput } from "@/lib/types";
 
+export const maxDuration = 300;
+
 type BatchRequestBody = {
   leads?: LeadInput[];
   reoonApiKey?: string;
