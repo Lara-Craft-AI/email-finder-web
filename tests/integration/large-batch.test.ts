@@ -129,6 +129,10 @@ describe("Large batch mock integration", () => {
     const progressEvents = messages.filter((m) => m.event === "progress");
     const resultEvents = messages.filter((m) => m.event === "result");
     const completeEvents = messages.filter((m) => m.event === "complete");
+    const errorEvents = messages.filter((m) => m.event === "error");
+
+    // No error events
+    expect(errorEvents).toHaveLength(0);
 
     // Total result events should equal LEAD_COUNT
     expect(resultEvents).toHaveLength(LEAD_COUNT);
