@@ -202,6 +202,37 @@ export default function Home() {
           <p className="text-sm text-zinc-500">50–100× cheaper than Apollo.</p>
         </div>
 
+        <div className="overflow-x-auto rounded-xl border border-zinc-200 text-xs sm:text-sm">
+          <div className="min-w-[260px]">
+            <div className="grid grid-cols-3 border-b border-zinc-200 px-4 py-2.5 text-xs font-medium text-zinc-400">
+              <span></span>
+              <span>Apollo</span>
+              <span className="text-zinc-700">Email Finder</span>
+            </div>
+            <div className="divide-y divide-zinc-100">
+              {[
+                ["Per email", "$0.05-0.10", "~$0.001"],
+                ["1k emails", "$50-100", "~$1"],
+                ["10k emails", "$500-1k", "~$10"],
+                ["Verification", "Bundled", "SMTP"],
+              ].map(([label, apollo, ours]) => (
+                <div key={label} className="grid grid-cols-3 px-4 py-3">
+                  <span className="text-zinc-500">{label}</span>
+                  <span className="text-zinc-400">{apollo}</span>
+                  <span className="font-medium text-zinc-800">{ours}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="border-t border-zinc-200 px-4 py-2.5 text-xs text-zinc-400">
+            Powered by{" "}
+            <a href="https://reoon.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-600">
+              Reoon
+            </a>{" "}
+            — BYOK, pay per use.
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
           {steps.map((step, i) => (
             <div key={step.label} className="flex items-center gap-1.5 sm:gap-2">
@@ -291,37 +322,6 @@ export default function Home() {
         {(isRunning || current > 0) && <ProgressStep current={current} total={total} activeName={activeName} />}
 
         {results.length > 0 && <ResultsTable results={results} />}
-
-        <div className="hidden sm:block overflow-x-auto rounded-xl border border-zinc-200 text-xs sm:text-sm">
-          <div className="min-w-[260px]">
-            <div className="grid grid-cols-3 border-b border-zinc-200 px-4 py-2.5 text-xs font-medium text-zinc-400">
-              <span></span>
-              <span>Apollo</span>
-              <span className="text-zinc-700">Email Finder</span>
-            </div>
-            <div className="divide-y divide-zinc-100">
-              {[
-                ["Per email", "$0.05-0.10", "~$0.001"],
-                ["1k emails", "$50-100", "~$1"],
-                ["10k emails", "$500-1k", "~$10"],
-                ["Verification", "Bundled", "SMTP"],
-              ].map(([label, apollo, ours]) => (
-                <div key={label} className="grid grid-cols-3 px-4 py-3">
-                  <span className="text-zinc-500">{label}</span>
-                  <span className="text-zinc-400">{apollo}</span>
-                  <span className="font-medium text-zinc-800">{ours}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="border-t border-zinc-200 px-4 py-2.5 text-xs text-zinc-400">
-            Powered by{" "}
-            <a href="https://reoon.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-600">
-              Reoon
-            </a>{" "}
-            — BYOK, pay per use.
-          </div>
-        </div>
       </div>
     </main>
   );
