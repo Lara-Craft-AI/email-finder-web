@@ -6,6 +6,8 @@ import { processMockLead } from "@/lib/mock";
 import { resolveDomain } from "@/lib/resolve-domain";
 import type { EmailResult, LeadInput } from "@/lib/types";
 
+export const maxDuration = 300; // 5 minutes — required for large CSV processing on Vercel
+
 const encoder = new TextEncoder();
 const MAX_CONCURRENCY = 25;
 
