@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Info, Lock } from "lucide-react";
 
 import { FileDropzone } from "@/components/FileDropzone";
@@ -12,40 +12,54 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import type { EmailResult, LeadInput } from "@/lib/types";
 
-type StreamEvent =
-  | { type: "start"; total: number }
-  | { type: "progress"; current: number; total: number; name: string }
-  | ({ type: "result" } & EmailResult)
-  | { type: "second_pass_start"; count: number }
-  | { type: "complete"; results: EmailResult[] }
-  | { type: "error"; message: string };
+const BATCH_SIZE = 20;
 
-function parseSseChunk(chunk: string) {
-  const messages = chunk.split("\n\n");
-  const parsed: StreamEvent[] = [];
+type BatchRequestBody = {
+  leads: LeadInput[];
+  reoonApiKey: string;
+  extended?: boolean;
+  offset?: number;
+};
 
-  for (const message of messages) {
-    const lines = message.split("\n").filter(Boolean);
-    if (!lines.length) {
-      continue;
-    }
+function chunkLeads(leads: LeadInput[], size: number) {
+  const chunks: LeadInput[][] = [];
 
-    const eventLine = lines.find((line) => line.startsWith("event:"));
-    const dataLine = lines.find((line) => line.startsWith("data:"));
-    if (!eventLine || !dataLine) {
-      continue;
-    }
-
-    const type = eventLine.replace("event:", "").trim();
-    try {
-      const payload = JSON.parse(dataLine.replace("data:", "").trim()) as Omit<StreamEvent, "type">;
-      parsed.push({ type, ...payload } as StreamEvent);
-    } catch {
-      // Skip malformed SSE messages instead of crashing the stream
-    }
+  for (let index = 0; index < leads.length; index += size) {
+    chunks.push(leads.slice(index, index + size));
   }
 
-  return parsed;
+  return chunks;
+}
+
+function mergeResults(existing: EmailResult[], incoming: EmailResult[]) {
+  const merged = new Map<string, EmailResult>();
+
+  for (const result of existing) {
+    merged.set(`${result.name}\0${result.company}`, result);
+  }
+
+  for (const result of incoming) {
+    merged.set(`${result.name}\0${result.company}`, result);
+  }
+
+  return [...merged.values()];
+}
+
+async function fetchBatch(body: BatchRequestBody) {
+  const response = await fetch("/api/find-emails/batch", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(payload?.error ?? "Failed to process batch.");
+  }
+
+  return (await response.json()) as EmailResult[];
 }
 
 export default function Home() {
@@ -58,7 +72,6 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState("");
   const [isApiKeyInfoOpen, setIsApiKeyInfoOpen] = useState(false);
-  const isSecondPassRef = useRef(false);
   const apiKeyInfoId = useId();
   const stepState = useMemo(
     () => ({
@@ -79,103 +92,61 @@ export default function Home() {
     setActiveName("");
 
     try {
-      const response = await fetch("/api/find-emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          leads,
+      const firstPassBatches = chunkLeads(leads, BATCH_SIZE);
+      let mergedResults: EmailResult[] = [];
+      let processedLeads = 0;
+
+      for (const [batchIndex, batch] of firstPassBatches.entries()) {
+        setActiveName(`Processing batch ${batchIndex + 1}/${firstPassBatches.length}`);
+
+        const batchResults = await fetchBatch({
+          leads: batch,
           reoonApiKey,
-        }),
-      });
+          offset: batchIndex * BATCH_SIZE,
+        });
 
-      if (!response.ok || !response.body) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "Failed to start the email finder.");
+        mergedResults = mergeResults(mergedResults, batchResults);
+        processedLeads += batch.length;
+
+        setResults(mergedResults);
+        setCurrent(processedLeads);
+        setTotal(leads.length);
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
+      const notFoundLeads = mergedResults
+        .filter((result) => result.status === "not_found")
+        .map(({ name, company }) => ({ name, company }));
 
-      while (true) {
-        const { done, value } = await reader.read();
+      if (notFoundLeads.length > 0) {
+        const secondPassBatches = chunkLeads(notFoundLeads, BATCH_SIZE);
+        let secondPassProcessed = 0;
 
-        if (value) {
-          buffer += decoder.decode(value, { stream: true });
+        setCurrent(0);
+        setTotal(notFoundLeads.length);
+
+        for (const [batchIndex, batch] of secondPassBatches.entries()) {
+          setActiveName(`Second pass batch ${batchIndex + 1}/${secondPassBatches.length}`);
+
+          const batchResults = await fetchBatch({
+            leads: batch,
+            reoonApiKey,
+            extended: true,
+            offset: batchIndex * BATCH_SIZE,
+          });
+
+          mergedResults = mergeResults(mergedResults, batchResults);
+          secondPassProcessed += batch.length;
+
+          setResults(mergedResults);
+          setCurrent(secondPassProcessed);
+          setTotal(notFoundLeads.length);
         }
-
-        if (done) {
-          // Flush remaining decoder bytes
-          buffer += decoder.decode();
-        }
-
-        const boundary = buffer.lastIndexOf("\n\n");
-        if (boundary === -1) {
-          if (done) break;
-          continue;
-        }
-
-        const complete = buffer.slice(0, boundary);
-        buffer = buffer.slice(boundary + 2);
-
-        for (const event of parseSseChunk(complete)) {
-          if (event.type === "start") {
-            setTotal(event.total);
-          }
-
-          if (event.type === "progress") {
-            setCurrent(event.current);
-            setTotal(event.total);
-            setActiveName((isSecondPassRef.current ? "[2nd pass] " : "") + event.name);
-          }
-
-          if (event.type === "second_pass_start") {
-            isSecondPassRef.current = true;
-            setCurrent(0);
-            setTotal(event.count);
-            setActiveName(`Second pass: ${event.count} not_found leads`);
-          }
-
-          if (event.type === "result") {
-            setResults((previous) => {
-              const existingIndex = previous.findIndex(
-                (r) => r.name === event.name && r.company === event.company,
-              );
-              if (existingIndex >= 0) {
-                const updated = [...previous];
-                updated[existingIndex] = event;
-                return updated;
-              }
-              return [...previous, event];
-            });
-          }
-
-          if (event.type === "complete") {
-            isSecondPassRef.current = false;
-            const deduped = new Map<string, typeof event.results[number]>();
-            for (const r of event.results) {
-              deduped.set(`${r.name}\0${r.company}`, r);
-            }
-            setResults([...deduped.values()]);
-            setIsRunning(false);
-            setCurrent(0);
-            setTotal(0);
-            setActiveName("");
-          }
-
-          if (event.type === "error") {
-            throw new Error(event.message);
-          }
-        }
-
-        if (done) break;
       }
+
+      setResults(mergedResults);
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Unexpected error.");
     } finally {
-      isSecondPassRef.current = false;
       setIsRunning(false);
       setCurrent(0);
       setTotal(0);
