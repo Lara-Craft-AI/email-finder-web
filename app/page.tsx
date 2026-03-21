@@ -201,7 +201,7 @@ export default function Home() {
               Find verified emails for $0.001 each.
             </h1>
             <p className="text-[15px] leading-relaxed text-zinc-500">
-              Upload a CSV, paste your Reoon key, download verified results.
+              50-100x cheaper than Apollo. Upload CSV → SMTP verify → download results.
             </p>
           </div>
 
@@ -235,14 +235,14 @@ export default function Home() {
               >
                 Reoon
               </a>{" "}
-              — BYOK — pay per verify.
+              — BYOK, pay per use.
             </div>
           </div>
         </section>
 
-        <div className="flex items-center justify-center gap-2 overflow-x-auto">
+        <div className="flex flex-wrap items-center justify-center gap-2">
           {steps.map((step, i) => (
-            <div key={step.label} className="flex shrink-0 items-center gap-2">
+            <div key={step.label} className="flex items-center gap-2">
               {i > 0 && <div className="h-px w-4 bg-zinc-200" />}
               <div
                 className={`whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${

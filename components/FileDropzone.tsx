@@ -130,10 +130,7 @@ export function FileDropzone({ onLeadsParsed }: FileDropzoneProps) {
     <Card>
       <CardHeader>
         <CardTitle>Upload your CSV</CardTitle>
-        <CardDescription>
-          Any CSV with columns containing &quot;first&quot;, &quot;last&quot;, and
-          &quot;company&quot; works.
-        </CardDescription>
+        <CardDescription>Columns: first, last, company</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div
