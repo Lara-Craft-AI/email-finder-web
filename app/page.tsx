@@ -247,7 +247,7 @@ export default function Home() {
           </div>
         </section>
 
-        <div className="flex items-center gap-2 overflow-x-auto">
+        <div className="flex items-center justify-center gap-2 overflow-x-auto">
           {steps.map((step, i) => (
             <div key={step.label} className="flex shrink-0 items-center gap-2">
               {i > 0 && <div className="h-px w-4 bg-zinc-200" />}
