@@ -2,6 +2,7 @@ import { permuteEmails } from "@/lib/permute";
 import { pickBestVerification, verifyCandidates } from "@/lib/reoon";
 import { isRoleBasedEmail, scoreDomainSimilarity, scoreEmailQuality } from "@/lib/email-quality";
 import { getMxProfile } from "@/lib/mx";
+import { processMockLead } from "@/lib/mock";
 import { resolveDomain } from "@/lib/resolve-domain";
 import type { EmailResult, LeadInput } from "@/lib/types";
 
@@ -106,13 +107,16 @@ async function processLead(
 }
 
 export async function POST(request: Request) {
+  const url = new URL(request.url);
   const body = (await request.json()) as {
     leads?: LeadInput[];
     reoonApiKey?: string;
     braveApiKey?: string;
+    mock?: boolean;
   };
 
   const leads = Array.isArray(body.leads) ? body.leads : [];
+  const mockMode = body.mock === true || url.searchParams.get("mock") === "true" || process.env.MOCK_API === "true";
   const reoonApiKey = body.reoonApiKey?.trim() ?? "";
   const braveApiKey = body.braveApiKey?.trim() || undefined;
 
@@ -120,7 +124,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "At least one lead is required." }, { status: 400 });
   }
 
-  if (!reoonApiKey) {
+  if (!mockMode && !reoonApiKey) {
     return Response.json({ error: "Reoon API key is required." }, { status: 400 });
   }
 
@@ -135,49 +139,19 @@ export async function POST(request: Request) {
       try {
         controller.enqueue(sseEvent("start", { total: leads.length }));
 
-        await Promise.all(
-          leads.map((lead, index) =>
-            limit(async () => {
-              const result = await processLead(lead, reoonApiKey, domainCache, mxCache, false, braveApiKey);
-              results[index] = result;
-              completed += 1;
-
-              controller.enqueue(
-                sseEvent("progress", {
-                  current: completed,
-                  total: leads.length,
-                  name: lead.name,
-                }),
-              );
-              controller.enqueue(sseEvent("result", result));
-            }),
-          ),
-        );
-
-        // Second pass: retry not_found leads with extended permutations
-        const notFoundIndices = results
-          .map((r, i) => (r.status === "not_found" ? i : -1))
-          .filter((i) => i !== -1);
-
-        if (notFoundIndices.length > 0) {
-          controller.enqueue(
-            sseEvent("second_pass_start", { count: notFoundIndices.length }),
-          );
-
-          let secondCompleted = 0;
-
+        if (mockMode) {
+          // ── Mock mode: skip all real API/DNS calls ──
           await Promise.all(
-            notFoundIndices.map((index) =>
+            leads.map((lead, index) =>
               limit(async () => {
-                const lead = leads[index];
-                const result = await processLead(lead, reoonApiKey, domainCache, mxCache, true, braveApiKey);
+                const result = await processMockLead(lead, index);
                 results[index] = result;
-                secondCompleted += 1;
+                completed += 1;
 
                 controller.enqueue(
                   sseEvent("progress", {
-                    current: secondCompleted,
-                    total: notFoundIndices.length,
+                    current: completed,
+                    total: leads.length,
                     name: lead.name,
                   }),
                 );
@@ -185,6 +159,59 @@ export async function POST(request: Request) {
               }),
             ),
           );
+        } else {
+          // ── Real mode: first pass ──
+          await Promise.all(
+            leads.map((lead, index) =>
+              limit(async () => {
+                const result = await processLead(lead, reoonApiKey, domainCache, mxCache, false, braveApiKey);
+                results[index] = result;
+                completed += 1;
+
+                controller.enqueue(
+                  sseEvent("progress", {
+                    current: completed,
+                    total: leads.length,
+                    name: lead.name,
+                  }),
+                );
+                controller.enqueue(sseEvent("result", result));
+              }),
+            ),
+          );
+
+          // Second pass: retry not_found leads with extended permutations
+          const notFoundIndices = results
+            .map((r, i) => (r.status === "not_found" ? i : -1))
+            .filter((i) => i !== -1);
+
+          if (notFoundIndices.length > 0) {
+            controller.enqueue(
+              sseEvent("second_pass_start", { count: notFoundIndices.length }),
+            );
+
+            let secondCompleted = 0;
+
+            await Promise.all(
+              notFoundIndices.map((index) =>
+                limit(async () => {
+                  const lead = leads[index];
+                  const result = await processLead(lead, reoonApiKey, domainCache, mxCache, true, braveApiKey);
+                  results[index] = result;
+                  secondCompleted += 1;
+
+                  controller.enqueue(
+                    sseEvent("progress", {
+                      current: secondCompleted,
+                      total: notFoundIndices.length,
+                      name: lead.name,
+                    }),
+                  );
+                  controller.enqueue(sseEvent("result", result));
+                }),
+              ),
+            );
+          }
         }
 
         controller.enqueue(sseEvent("complete", { results }));
