@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useMemo, useRef, useState } from "react";
-import { Info, Lock } from "lucide-react";
+import { ChevronDown, Info, Lock } from "lucide-react";
 
 import { FileDropzone } from "@/components/FileDropzone";
 import { ProgressStep } from "@/components/ProgressStep";
@@ -58,6 +58,7 @@ export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState("");
   const [isApiKeyInfoOpen, setIsApiKeyInfoOpen] = useState(false);
+  const [isTableOpen, setIsTableOpen] = useState(false);
   const isSecondPassRef = useRef(false);
   const apiKeyInfoId = useId();
   const stepState = useMemo(
@@ -192,10 +193,10 @@ export default function Home() {
   ];
 
   return (
-    <main className="min-h-screen bg-white px-4 py-8 sm:px-6 sm:py-16">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 sm:gap-10">
-        <section className="space-y-6">
-          <div className="space-y-3">
+    <main className="min-h-screen bg-white px-4 py-6 sm:px-6 sm:py-16">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 sm:gap-10">
+        <section className="space-y-4 sm:space-y-6">
+          <div className="space-y-2 sm:space-y-3">
             <p className="text-xs font-medium uppercase tracking-widest text-zinc-400">Email Finder</p>
             <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl">
               Find verified emails for $0.001 each.
@@ -205,8 +206,56 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-zinc-200 text-xs sm:text-sm">
-            <div className="grid grid-cols-3 border-b border-zinc-200 px-3 py-2.5 text-xs font-medium text-zinc-400 sm:px-4">
+          {/* Mobile: collapsed pricing summary */}
+          <div className="sm:hidden">
+            <button
+              type="button"
+              onClick={() => setIsTableOpen((prev) => !prev)}
+              className="flex w-full items-center justify-between rounded-xl border border-zinc-200 px-3 py-2.5 text-left text-xs"
+            >
+              <span className="text-zinc-500">
+                ~$0.001/email · <span className="font-medium text-zinc-700">50-100x cheaper than Apollo</span>
+              </span>
+              <ChevronDown
+                size={14}
+                className={`shrink-0 text-zinc-400 transition-transform ${isTableOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {isTableOpen && (
+              <div className="mt-2 overflow-x-auto rounded-xl border border-zinc-200 text-xs">
+                <div className="grid grid-cols-3 border-b border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-400">
+                  <span></span>
+                  <span>Apollo</span>
+                  <span className="text-zinc-700">Us</span>
+                </div>
+                <div className="divide-y divide-zinc-100">
+                  {[
+                    ["Per email", "$0.05-0.10", "~$0.001"],
+                    ["1k emails", "$50-100", "~$1"],
+                    ["10k emails", "$500-1k", "~$10"],
+                    ["Verify", "Bundled", "SMTP"],
+                  ].map(([label, apollo, ours]) => (
+                    <div key={label} className="grid grid-cols-3 px-3 py-2">
+                      <span className="text-zinc-500">{label}</span>
+                      <span className="text-zinc-400">{apollo}</span>
+                      <span className="font-medium text-zinc-800">{ours}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-zinc-200 px-3 py-2 text-xs text-zinc-400">
+                  Powered by{" "}
+                  <a href="https://reoon.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-600">
+                    Reoon
+                  </a>{" "}
+                  — BYOK, pay per use.
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Desktop: full pricing table */}
+          <div className="hidden overflow-x-auto rounded-xl border border-zinc-200 text-sm sm:block">
+            <div className="grid grid-cols-3 border-b border-zinc-200 px-4 py-2.5 text-xs font-medium text-zinc-400">
               <span></span>
               <span>Apollo</span>
               <span className="text-zinc-700">Email Finder</span>
@@ -218,21 +267,16 @@ export default function Home() {
                 ["10,000 emails", "$500-1,000", "~$10"],
                 ["Verification", "Bundled", "SMTP verified"],
               ].map(([label, apollo, ours]) => (
-                <div key={label} className="grid grid-cols-3 px-3 py-2.5 sm:px-4 sm:py-3">
+                <div key={label} className="grid grid-cols-3 px-4 py-3">
                   <span className="text-zinc-500">{label}</span>
                   <span className="text-zinc-400">{apollo}</span>
                   <span className="font-medium text-zinc-800">{ours}</span>
                 </div>
               ))}
             </div>
-            <div className="border-t border-zinc-200 px-3 py-2.5 text-xs text-zinc-400 sm:px-4">
+            <div className="border-t border-zinc-200 px-4 py-2.5 text-xs text-zinc-400">
               Powered by{" "}
-              <a
-                href="https://reoon.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline hover:text-zinc-600"
-              >
+              <a href="https://reoon.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-600">
                 Reoon
               </a>{" "}
               — BYOK, pay per use.
