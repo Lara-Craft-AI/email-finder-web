@@ -3,13 +3,13 @@ import { processMockLead } from "@/lib/mock";
 import { getMxProfile } from "@/lib/mx";
 import { permuteEmails } from "@/lib/permute";
 import { pickBestVerification, verifyCandidates } from "@/lib/reoon";
-import { resolveDomain } from "@/lib/resolve-domain";
+import { resolveDomain, type DomainResolution } from "@/lib/resolve-domain";
 import type { EmailResult, LeadInput } from "@/lib/types";
 
 export const MAX_REOON_CONCURRENCY = 25;
 export const MAX_BATCH_SIZE = 20;
 
-type DomainCache = Map<string, Promise<string>>;
+type DomainCache = Map<string, Promise<DomainResolution>>;
 type MxCache = Map<string, Promise<Awaited<ReturnType<typeof getMxProfile>>>>;
 
 export type BatchProcessingContext = {
@@ -59,14 +59,15 @@ async function processLead(
   braveApiKey?: string,
 ) {
   const trimmedCompany = lead.company.trim();
-  let domainPromise = domainCache.get(trimmedCompany);
+  let resolutionPromise = domainCache.get(trimmedCompany);
 
-  if (!domainPromise) {
-    domainPromise = resolveDomain(lead.company, braveApiKey).then((resolution) => resolution.domain);
-    domainCache.set(trimmedCompany, domainPromise);
+  if (!resolutionPromise) {
+    resolutionPromise = resolveDomain(lead.company, braveApiKey);
+    domainCache.set(trimmedCompany, resolutionPromise);
   }
 
-  const domain = await domainPromise;
+  const resolution = await resolutionPromise;
+  const domain = resolution.domain;
   let mxPromise = mxCache.get(domain);
 
   if (!mxPromise) {
@@ -75,7 +76,11 @@ async function processLead(
   }
 
   const mxProfile = await mxPromise;
-  const { similarity, domainMatchRisk } = scoreDomainSimilarity(domain, lead.company);
+  // Reuse pre-computed similarity from domain resolution (Clearbit/Brave paths)
+  // to avoid redundant Levenshtein computation
+  const { similarity, domainMatchRisk } = resolution.similarity != null
+    ? { similarity: resolution.similarity, domainMatchRisk: resolution.domainMatchRisk! }
+    : scoreDomainSimilarity(domain, lead.company);
   const fallbackStatus = !domain || !mxProfile.hasMx ? "unresolved_domain" : "not_found";
 
   if (!domain || !mxProfile.hasMx) {
@@ -123,7 +128,7 @@ async function processLead(
 
 export function createBatchProcessingContext(): BatchProcessingContext {
   return {
-    domainCache: new Map<string, Promise<string>>(),
+    domainCache: new Map<string, Promise<DomainResolution>>(),
     mxCache: new Map<string, Promise<Awaited<ReturnType<typeof getMxProfile>>>>(),
   };
 }
@@ -149,15 +154,12 @@ export async function processLeadBatch({
       leads.map(async (lead) => {
         const trimmedCompany = lead.company.trim();
         if (!context.domainCache.has(trimmedCompany)) {
-          const domainPromise = resolveDomain(lead.company, braveApiKey).then(
-            (resolution) => resolution.domain,
-          );
-          context.domainCache.set(trimmedCompany, domainPromise);
+          context.domainCache.set(trimmedCompany, resolveDomain(lead.company, braveApiKey));
         }
         // Kick off MX lookup as soon as domain promise is seeded
-        const domain = await context.domainCache.get(trimmedCompany)!;
-        if (domain && !context.mxCache.has(domain)) {
-          context.mxCache.set(domain, getMxProfile(domain));
+        const resolution = await context.domainCache.get(trimmedCompany)!;
+        if (resolution.domain && !context.mxCache.has(resolution.domain)) {
+          context.mxCache.set(resolution.domain, getMxProfile(resolution.domain));
         }
       }),
     );

@@ -79,20 +79,36 @@ export async function verifyCandidates(
     if (hasWinner) {
       break;
     }
+
+    // Early exit: if every result in this wave is catch_all, the domain
+    // accepts all addresses — remaining candidates will also be catch_all.
+    const allCatchAll = waveResults.length > 0 && waveResults.every(
+      (r) => r.status === "catch_all",
+    );
+    if (allCatchAll) {
+      break;
+    }
   }
 
   return results;
 }
 
+const STATUS_PRIORITY: Record<string, number> = { valid: 0, safe_to_send: 1, catch_all: 2 };
+
 export function pickBestVerification(
   results: Array<{ email: string; pattern: string; status: EmailStatus }>,
 ) {
-  for (const status of WINNING_STATUSES) {
-    const winner = results.find((result) => result.status === status);
-    if (winner) {
-      return winner;
+  let best: (typeof results)[number] | null = null;
+  let bestPriority = Infinity;
+
+  for (const result of results) {
+    const priority = STATUS_PRIORITY[result.status];
+    if (priority != null && priority < bestPriority) {
+      best = result;
+      bestPriority = priority;
+      if (priority === 0) break; // Can't do better than "valid"
     }
   }
 
-  return null;
+  return best;
 }

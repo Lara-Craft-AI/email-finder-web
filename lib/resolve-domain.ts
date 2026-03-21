@@ -2,6 +2,14 @@ import { resolveMx } from "node:dns/promises";
 
 import { DOMAIN_OVERRIDES } from "@/lib/domains-override";
 import { scoreDomainSimilarity } from "@/lib/email-quality";
+import type { DomainMatchRisk } from "@/lib/types";
+
+export type DomainResolution = {
+  domain: string;
+  source: string;
+  similarity?: number;
+  domainMatchRisk?: DomainMatchRisk | null;
+};
 
 function normalizeDomain(input: string) {
   return input.trim().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase();
@@ -60,7 +68,7 @@ async function trySlugGuess(company: string): Promise<string | null> {
   return null;
 }
 
-export async function resolveDomain(company: string, braveApiKey?: string) {
+export async function resolveDomain(company: string, braveApiKey?: string): Promise<DomainResolution> {
   const trimmed = company.trim();
 
   if (!trimmed) {
@@ -73,40 +81,51 @@ export async function resolveDomain(company: string, braveApiKey?: string) {
     return { domain: override, source: "override" };
   }
 
-  // ── Step 2: Slug guess with MX check (free, parallel DNS) ──
-  try {
-    const slugDomain = await trySlugGuess(trimmed);
-    if (slugDomain) {
-      return { domain: slugDomain, source: "slug_guess" };
-    }
-  } catch {
-    // slug guess failed entirely, continue
-  }
-
-  // ── Step 3 + 4: Race Clearbit (free) and Brave (paid) simultaneously ──
-  // Clearbit result is preferred if similarity is sufficient; Brave is the fallback.
+  // ── Steps 2-4: Race slug guess (free DNS) with Clearbit (free HTTP) in parallel ──
+  // Previously slug guess blocked Clearbit; now they run concurrently so a slow/failing
+  // slug guess doesn't add latency before we try API-based resolution.
   const effectiveBraveKey = braveApiKey || process.env.BRAVE_API_KEY;
 
-  const clearbitPromise = fetch(
-    `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(trimmed)}`,
-    {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(8_000),
-    },
-  )
-    .then(async (response) => {
+  const slugPromise = trySlugGuess(trimmed)
+    .then((domain) => domain ? { domain, source: "slug_guess" as const } : null)
+    .catch(() => null);
+
+  const clearbitPromise = (async () => {
+    try {
+      const response = await fetch(
+        `https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(trimmed)}`,
+        {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(8_000),
+        },
+      );
       if (!response.ok) return null;
       const payload = (await response.json()) as Array<{ domain?: string }>;
       const domain = payload[0]?.domain ? normalizeDomain(payload[0].domain) : "";
       if (!domain) return null;
-      const { similarity } = scoreDomainSimilarity(domain, trimmed);
-      return similarity >= 0.6 ? { domain, source: "clearbit" as const } : null;
-    })
-    .catch(() => null);
+      const { similarity, domainMatchRisk } = scoreDomainSimilarity(domain, trimmed);
+      return similarity >= 0.6 ? { domain, source: "clearbit" as const, similarity, domainMatchRisk } : null;
+    } catch {
+      return null;
+    }
+  })();
 
-  const bravePromise = effectiveBraveKey
-    ? fetch(
+  const [slugResult, clearbitResult] = await Promise.all([slugPromise, clearbitPromise]);
+
+  // Prefer slug guess (free, no API dependency) over Clearbit
+  if (slugResult) {
+    return slugResult;
+  }
+
+  if (clearbitResult) {
+    return clearbitResult;
+  }
+
+  // ── Step 5: Brave fallback (paid) — only if free methods failed ──
+  if (effectiveBraveKey) {
+    try {
+      const braveRes = await fetch(
         "https://api.search.brave.com/res/v1/web/search?q=" +
           encodeURIComponent(trimmed + " official website") +
           "&count=3",
@@ -115,37 +134,28 @@ export async function resolveDomain(company: string, braveApiKey?: string) {
           cache: "no-store",
           signal: AbortSignal.timeout(8_000),
         },
-      )
-        .then(async (braveRes) => {
-          if (!braveRes.ok) return null;
-          const braveData = (await braveRes.json()) as {
-            web?: { results?: Array<{ url?: string }> };
-          };
-          const firstUrl = braveData?.web?.results?.[0]?.url;
-          if (!firstUrl) return null;
+      );
+      if (braveRes.ok) {
+        const braveData = (await braveRes.json()) as {
+          web?: { results?: Array<{ url?: string }> };
+        };
+        const firstUrl = braveData?.web?.results?.[0]?.url;
+        if (firstUrl) {
           const braveDomain = normalizeDomain(firstUrl);
-          if (!braveDomain) return null;
-          const { similarity } = scoreDomainSimilarity(braveDomain, trimmed);
-          return similarity >= 0.5 ? { domain: braveDomain, source: "brave" as const } : null;
-        })
-        .catch((error) => {
-          console.error(
-            `[resolve-domain] Brave search failed for "${trimmed}":`,
-            error instanceof Error ? error.message : error,
-          );
-          return null;
-        })
-    : Promise.resolve(null);
-
-  // Wait for both in parallel; prefer Clearbit if it passes quality threshold
-  const [clearbitResult, braveResult] = await Promise.all([clearbitPromise, bravePromise]);
-
-  if (clearbitResult) {
-    return clearbitResult;
-  }
-
-  if (braveResult) {
-    return braveResult;
+          if (braveDomain) {
+            const { similarity, domainMatchRisk } = scoreDomainSimilarity(braveDomain, trimmed);
+            if (similarity >= 0.5) {
+              return { domain: braveDomain, source: "brave" as const, similarity, domainMatchRisk };
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(
+        `[resolve-domain] Brave search failed for "${trimmed}":`,
+        error instanceof Error ? error.message : error,
+      );
+    }
   }
 
   // ── Step 5: Return null (unresolved) ──

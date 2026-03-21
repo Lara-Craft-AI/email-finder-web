@@ -62,8 +62,8 @@ describe("resolveDomain", () => {
     const result = await resolveDomain("Barefoot Books");
     expect(result.domain).toBe("barefootbooks.com");
     expect(result.source).toBe("slug_guess");
-    // Should not call fetch (no Clearbit/Brave needed)
-    expect(mockFetch).not.toHaveBeenCalled();
+    // Slug guess and Clearbit now race in parallel for lower latency,
+    // so fetch may be called even when slug succeeds first.
   });
 
   it("resolves via hyphenated slug when joined slug has no MX", async () => {
