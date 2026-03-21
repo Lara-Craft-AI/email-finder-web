@@ -201,9 +201,7 @@ export default function Home() {
               Find verified emails for $0.001 each.
             </h1>
             <p className="text-[15px] leading-relaxed text-zinc-500">
-              Apollo charges $0.05-0.10 per email. We use SMTP verification directly — same
-              accuracy, 50-100x cheaper. Upload a CSV, paste your Reoon key, download verified
-              results.
+              Upload a CSV, paste your Reoon key, download verified results.
             </p>
           </div>
 
@@ -237,7 +235,7 @@ export default function Home() {
               >
                 Reoon
               </a>{" "}
-              — bring your own key, pay only for what you verify.
+              — BYOK — pay per verify.
             </div>
           </div>
         </section>
@@ -304,7 +302,7 @@ export default function Home() {
             <CardTitle>Reoon API key</CardTitle>
             <CardDescription className="flex items-start gap-1.5">
               <Lock size={13} className="mt-0.5 shrink-0 text-zinc-400" />
-              Your key is sent over HTTPS, used once to verify emails, and never stored or shared.
+              Never stored.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
